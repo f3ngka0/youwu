@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 课表 Widget 色板（1:1 设计稿规格，浅色） -->
+<resources>
+    <color name="w_card">#FFFFFF</color>
+    <color name="w_text">#1C1B1F</color>
+    <color name="w_text2">#49454F</color>
+    <color name="w_text3">#8A8F99</color>
+    <color name="w_divider">#F0F1F4</color>
+    <color name="w_weather">#55B1F3</color>
+    <color name="w_check_gray">#9AA0A6</color>
+
+    <color name="w_green">#2EA049</color>
+    <color name="w_green_badge">#E4F4E7</color>
+    <color name="w_green_soft">#F2FAF3</color>
+
+    <color name="w_blue">#2E6BE6</color>
+    <color name="w_blue_num">#245CC5</color>
+    <color name="w_blue_badge">#DEE9FD</color>
+    <color name="w_blue_soft">#F2F7FE</color>
+
+    <color name="w_orange">#FB8A00</color>
+    <color name="w_orange_badge">#FDEBD4</color>
+    <color name="w_orange_soft">#FFF6EB</color>
+
+    <color name="w_red">#E0392E</color>
+    <color name="w_red_badge">#FDE4E2</color>
+    <color name="w_red_soft">#FEF2F1</color>
+
+    <color name="w_purple">#7C6BD6</color>
+    <color name="w_purple_badge">#ECE9FB</color>
+    <color name="w_purple_soft">#F6F2FE</color>
+
+    <color name="w_gray">#8A8F99</color>
+    <color name="w_gray_badge">#EFF0F3</color>
+    <color name="w_gray_soft">#F6F7F9</color>
+
+    <color name="w_dot0">#2EA049</color>
+    <color name="w_dot1">#3B82F6</color>
+    <color name="w_dot2">#FD9713</color>
+    <color name="w_dot3">#7E57C2</color>
+</resources>

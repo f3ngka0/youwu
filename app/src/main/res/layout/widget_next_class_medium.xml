@@ -1,0 +1,735 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×2（1:1 设计稿终版）：左栏 42% = 2×2 完整复刻（逐行一致）；中 1dp #F0F1F4 分隔；
+     右栏顶部紧凑排列、行高固定 34dp：普通行四色圆点轮换；当前/即将行状态浅底胶囊 +
+     26dp 主色实心圆内嵌白▶（28dp 固定标记槽，时间列全行对齐）；结束行灰描边对勾圈 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/widget_card"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center_vertical"
+        android:background="@drawable/w_card_bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="11dp"
+        android:paddingBottom="11dp">
+
+        <!-- 左栏 42%：与 2×2 逐行一致 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="0.75"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="20dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <LinearLayout
+                    android:id="@+id/label_chip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingLeft="7dp"
+                    android:paddingRight="7dp"
+                    android:paddingTop="2dp"
+                    android:paddingBottom="2dp"
+                    android:background="@drawable/w_badge_gray">
+
+                    <TextView
+                        android:id="@+id/status_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="9sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/w_gray"
+                        android:maxLines="1"
+                        android:text="下一节课" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <ImageView
+                    android:id="@+id/weather_icon"
+                    android:layout_width="13dp"
+                    android:layout_height="13dp"
+                    android:src="@drawable/i_rain"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/weather_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="3dp"
+                    android:textSize="10sp"
+                    android:textColor="@color/w_text2"
+                    android:maxLines="1"
+                    android:text="23°" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/content_course"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:clipChildren="false">
+
+            <!-- 倒计时 -->
+            <LinearLayout
+                android:id="@+id/big_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="5dp">
+
+                <TextView
+                    android:id="@+id/prefix_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="9sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/w_text3"
+                    android:layout_gravity="bottom"
+                    android:paddingBottom="4dp"
+                    android:visibility="gone"
+                    android:text="距离上课" />
+
+                <TextView
+                    android:id="@+id/big_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="32sp"
+                    android:fontFamily="sans-serif"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:textColor="@color/w_orange"
+                    android:maxLines="1"
+                    android:text="42" />
+
+                <TextView
+                    android:id="@+id/unit_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:textColor="@color/w_text3"
+                    android:layout_gravity="bottom"
+                    android:paddingBottom="4dp"
+                    android:layout_marginLeft="4dp"
+                    android:maxLines="1"
+                    android:text="分钟后" />
+            </LinearLayout>
+
+            <!-- 标题（第一行） -->
+            <TextView
+                android:id="@+id/course_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:textSize="15sp"
+                android:fontFamily="sans-serif-medium"
+                android:textStyle="bold"
+                android:textColor="@color/w_text"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="高等数学" />
+
+            <!-- 教室行（与 2×2 一致：课名下方的独立教室行；进行中=绿色 / 已下课=灰 / 倒计时=灰） -->
+            <TextView
+                android:id="@+id/room_line"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="11sp"
+                android:textColor="@color/w_text3"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:visibility="gone"
+                android:text="A栋 203" />
+
+            <!-- 第二行（课程已结束=辛苦啦！；礼花独立锚定在左栏右下角） -->
+            <LinearLayout
+                android:id="@+id/sub_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="2dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/sub_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textStyle="bold"
+                    android:textColor="@color/w_text"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="高等数学" />
+            </LinearLayout>
+
+            <!-- 弹性空白：课程已结束时右下角锚定放大礼花（2×2/4×2 设计一致） -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipChildren="false">
+
+                <ImageView
+                    android:id="@+id/celebrate"
+                    android:layout_width="72dp"
+                    android:layout_height="72dp"
+                    android:layout_gravity="bottom|end"
+                    android:src="@drawable/i_celebrate"
+                    android:contentDescription="@null" />
+            </FrameLayout>
+
+                <!-- 状态卡片：左文案列 + 确定性进度环 -->
+                <LinearLayout
+                    android:id="@+id/status_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="7dp"
+                    android:paddingTop="5dp"
+                    android:paddingBottom="5dp"
+                    android:background="@drawable/w_soft_blue">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/card_label"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="9sp"
+                            android:textColor="@color/w_text3"
+                            android:maxLines="1"
+                            android:text="还剩" />
+
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/card_main"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="12sp"
+                                android:fontFamily="sans-serif-medium"
+                                android:textStyle="bold"
+                                android:textColor="@color/w_green"
+                                android:maxLines="1"
+                                android:text="38" />
+
+                            <TextView
+                                android:id="@+id/card_post"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginLeft="3dp"
+                                android:textSize="9sp"
+                                android:textColor="@color/w_text3"
+                                android:maxLines="1"
+                                android:text="分钟" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <FrameLayout
+                        android:layout_width="34dp"
+                        android:layout_height="34dp">
+
+                        <ImageView
+                            android:id="@+id/w_ring"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/ring_icon"
+                            android:layout_width="13dp"
+                            android:layout_height="13dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_assign_w"
+                            android:contentDescription="@null" />
+                    </FrameLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 今天无课：居中空状态 -->
+            <LinearLayout
+                android:id="@+id/content_empty"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone">
+
+                <ImageView
+                    android:layout_width="26dp"
+                    android:layout_height="26dp"
+                    android:src="@drawable/i_cafe_green"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/rest_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:textSize="10sp"
+                    android:textColor="@color/w_text3"
+                    android:maxLines="1"
+                    android:text="好好休息一下吧" />
+            </LinearLayout>
+
+            <!-- 下一节课预告框 -->
+            <LinearLayout
+                android:id="@+id/next_box"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/w_box_gray"
+                android:paddingLeft="9dp"
+                android:paddingRight="9dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/next_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="8sp"
+                        android:textColor="@color/w_text3"
+                        android:text="下一节课" />
+
+                    <TextView
+                        android:id="@+id/next_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:textSize="11sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:textColor="@color/w_text2"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="明天 08:00 · 大学英语" />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/next_calendar"
+                    android:layout_width="13dp"
+                    android:layout_height="13dp"
+                    android:src="@drawable/i_event_gray"
+                    android:contentDescription="@null" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 轻分隔 -->
+        <ImageView
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:layout_marginLeft="9dp"
+            android:layout_marginRight="9dp"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="3dp"
+            android:background="@color/w_divider"
+            android:contentDescription="@null" />
+
+        <!-- 右栏：今日/明日课程（顶部紧凑、固定 34dp 行高） -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="16dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/right_header"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/w_text2"
+                    android:maxLines="1"
+                    android:text="今天课程" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/count_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="9sp"
+                    android:textColor="@color/w_text3"
+                    android:maxLines="1"
+                    android:text="4 节" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/today_rows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/today_row1"
+                    android:layout_width="match_parent"
+                    android:layout_height="34dp"
+                    android:layout_marginBottom="5dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingLeft="0dp"
+                    android:paddingRight="8dp"
+                    android:background="@drawable/w_row_normal">
+
+                    <!-- 28dp 固定标记槽：所有行标记居中于此，时间列左边缘全行对齐 -->
+                    <FrameLayout
+                        android:layout_width="16dp"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/row_play1"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_circle_w"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_play_tri1"
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_play_w"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_check1"
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_check_ring_gray"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_dot1"
+                            android:layout_width="9dp"
+                            android:layout_height="9dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_dot0"
+                            android:contentDescription="@null" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:id="@+id/row_time1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="4dp"
+                        android:textSize="11sp"
+                        android:textColor="@color/w_text2"
+                        android:maxLines="1"
+                        android:fontFeatureSettings="tnum"
+                        android:text="08:00" />
+
+                    <TextView
+                        android:id="@+id/row_name1"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="5dp"
+                        android:textSize="11sp"
+                        android:textColor="@color/w_text"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="高等数学" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/today_row2"
+                    android:layout_width="match_parent"
+                    android:layout_height="34dp"
+                    android:layout_marginBottom="5dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingLeft="0dp"
+                    android:paddingRight="8dp"
+                    android:background="@drawable/w_row_normal">
+
+                    <FrameLayout
+                        android:layout_width="16dp"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/row_play2"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_circle_w"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_play_tri2"
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_play_w"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_check2"
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_check_ring_gray"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_dot2"
+                            android:layout_width="9dp"
+                            android:layout_height="9dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_dot1"
+                            android:contentDescription="@null" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:id="@+id/row_time2"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="4dp"
+                        android:textSize="11sp"
+                        android:textColor="@color/w_text2"
+                        android:maxLines="1"
+                        android:fontFeatureSettings="tnum"
+                        android:text="10:10" />
+
+                    <TextView
+                        android:id="@+id/row_name2"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="5dp"
+                        android:textSize="11sp"
+                        android:textColor="@color/w_text"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="大学英语" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/today_row3"
+                    android:layout_width="match_parent"
+                    android:layout_height="34dp"
+                    android:layout_marginBottom="5dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingLeft="0dp"
+                    android:paddingRight="8dp"
+                    android:background="@drawable/w_row_normal">
+
+                    <FrameLayout
+                        android:layout_width="16dp"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/row_play3"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_circle_w"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_play_tri3"
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_play_w"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_check3"
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_check_ring_gray"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_dot3"
+                            android:layout_width="9dp"
+                            android:layout_height="9dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_dot2"
+                            android:contentDescription="@null" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:id="@+id/row_time3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="4dp"
+                        android:textSize="11sp"
+                        android:textColor="@color/w_text2"
+                        android:maxLines="1"
+                        android:fontFeatureSettings="tnum"
+                        android:text="14:00" />
+
+                    <TextView
+                        android:id="@+id/row_name3"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="5dp"
+                        android:textSize="11sp"
+                        android:textColor="@color/w_text"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="程序设计基础" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/today_row4"
+                    android:layout_width="match_parent"
+                    android:layout_height="34dp"
+                    android:layout_marginBottom="5dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingLeft="0dp"
+                    android:paddingRight="8dp"
+                    android:background="@drawable/w_row_normal">
+
+                    <FrameLayout
+                        android:layout_width="16dp"
+                        android:layout_height="match_parent">
+
+                        <ImageView
+                            android:id="@+id/row_play4"
+                            android:layout_width="14dp"
+                            android:layout_height="14dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_circle_w"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_play_tri4"
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_play_w"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_check4"
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_check_ring_gray"
+                            android:visibility="gone"
+                            android:contentDescription="@null" />
+
+                        <ImageView
+                            android:id="@+id/row_dot4"
+                            android:layout_width="9dp"
+                            android:layout_height="9dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/i_dot3"
+                            android:contentDescription="@null" />
+                    </FrameLayout>
+
+                    <TextView
+                        android:id="@+id/row_time4"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="4dp"
+                        android:textSize="11sp"
+                        android:textColor="@color/w_text2"
+                        android:maxLines="1"
+                        android:fontFeatureSettings="tnum"
+                        android:text="16:00" />
+
+                    <TextView
+                        android:id="@+id/row_name4"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginLeft="5dp"
+                        android:textSize="11sp"
+                        android:textColor="@color/w_text"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="体育" />
+
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/today_empty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:textSize="10sp"
+                android:textColor="@color/w_text3"
+                android:maxLines="2"
+                android:visibility="gone"
+                android:text="今天没有课程" />
+        </LinearLayout>
+    </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

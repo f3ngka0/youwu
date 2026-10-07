@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2×2（1:1 设计稿终版）：徽章+天气 → 倒计时(Display) → 标题行 → 状态卡片(进度环)；
+     今天无课 = 黑色粗标题 + 绿茶杯插画 + 好好休息一下吧 + 预告框 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <FrameLayout
+        android:id="@+id/widget_card"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center_vertical"
+        android:background="@drawable/w_card_bg">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="11dp"
+        android:paddingBottom="11dp">
+
+        <!-- 状态徽章 + 天气（同一基线，高 20dp） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <LinearLayout
+                android:id="@+id/label_chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:paddingTop="2dp"
+                android:paddingBottom="2dp"
+                android:background="@drawable/w_badge_gray">
+
+                <TextView
+                    android:id="@+id/status_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="10sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/w_gray"
+                    android:maxLines="1"
+                    android:text="下一节课" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <ImageView
+                android:id="@+id/weather_icon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/i_rain"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/weather_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="3dp"
+                android:textSize="11sp"
+                android:textColor="@color/w_text2"
+                android:maxLines="1"
+                android:text="23°" />
+        </LinearLayout>
+
+        <!-- 课程态内容：徽章行以下全部（空态时只留标题） -->
+        <LinearLayout
+            android:id="@+id/content_course"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:clipChildren="false">
+
+            <!-- 倒计时：小标签(可选) + 大数字 + 单位 -->
+            <LinearLayout
+                android:id="@+id/big_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="6dp">
+
+                <TextView
+                    android:id="@+id/prefix_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="10sp"
+                    android:textColor="@color/w_text3"
+                    android:layout_gravity="bottom"
+                    android:paddingBottom="4dp"
+                    android:visibility="gone"
+                    android:text="距离上课" />
+
+                <TextView
+                    android:id="@+id/big_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="36sp"
+                    android:fontFamily="sans-serif"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:translationY="2dp"
+                    android:textColor="@color/w_orange"
+                    android:maxLines="1"
+                    android:text="42" />
+
+                <TextView
+                    android:id="@+id/unit_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:textColor="@color/w_text3"
+                    android:layout_gravity="bottom"
+                    android:paddingBottom="3dp"
+                    android:layout_marginLeft="4dp"
+                    android:maxLines="1"
+                    android:text="分钟后" />
+            </LinearLayout>
+
+            <!-- 标题行：倒计时态 = 课名 · 教室 合并；其他态 = 标题单行 -->
+            <LinearLayout
+                android:id="@+id/name_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="4dp">
+
+                <TextView
+                    android:id="@+id/course_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textStyle="bold"
+                    android:textColor="@color/w_text"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="高等数学" />
+
+                <TextView
+                    android:id="@+id/place_sep"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="4dp"
+                    android:layout_marginRight="4dp"
+                    android:textSize="12sp"
+                    android:textColor="@color/w_text3"
+                    android:visibility="gone"
+                    android:text="·" />
+
+                <TextView
+                    android:id="@+id/place_tv"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="@color/w_text3"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:visibility="gone"
+                    android:text="A栋 203" />
+            </LinearLayout>
+
+            <!-- 第二行（课程已结束=辛苦啦！；礼花独立锚定在右下角，与 4×2 设计一致） -->
+            <LinearLayout
+                android:id="@+id/sub_row"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="2dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/sub_title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textStyle="bold"
+                    android:textColor="@color/w_text"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="高等数学" />
+            </LinearLayout>
+
+            <!-- 教室下移行（倒计时 P2：课名独占整行时） -->
+            <TextView
+                android:id="@+id/room_line"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="11sp"
+                android:textColor="@color/w_text3"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:visibility="gone"
+                android:text="A栋 203" />
+
+            <!-- 教室行（进行中=绿色定位针；已下课=纯灰文字） -->
+
+            <!-- 弹性空白：课程已结束时右下角锚定放大礼花（与 4×2 设计一致） -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:clipChildren="false">
+
+                <ImageView
+                    android:id="@+id/celebrate"
+                    android:layout_width="54dp"
+                    android:layout_height="54dp"
+                    android:layout_gravity="bottom|end"
+                    android:src="@drawable/i_celebrate"
+                    android:contentDescription="@null" />
+            </FrameLayout>
+
+            <!-- 底部状态胶囊：左文案列 + 右侧确定性进度环（2×2 也展示进度环） -->
+            <LinearLayout
+                android:id="@+id/status_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingLeft="10dp"
+                android:paddingRight="8dp"
+                android:paddingTop="5dp"
+                android:paddingBottom="5dp"
+                android:background="@drawable/w_soft_blue">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/card_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="9sp"
+                        android:textColor="@color/w_text3"
+                        android:maxLines="1"
+                        android:text="还剩" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/card_main"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="14sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:textStyle="bold"
+                            android:textColor="@color/w_green"
+                            android:maxLines="1"
+                            android:text="38" />
+
+                        <TextView
+                            android:id="@+id/card_post"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="3dp"
+                            android:textSize="9sp"
+                            android:textColor="@color/w_text3"
+                            android:maxLines="1"
+                            android:text="分钟" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <FrameLayout
+                    android:layout_width="40dp"
+                    android:layout_height="40dp">
+
+                    <ImageView
+                        android:id="@+id/w_ring"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="@null" />
+
+                    <ImageView
+                        android:id="@+id/ring_icon"
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/i_assign_w"
+                        android:contentDescription="@null" />
+                </FrameLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 今天无课：居中空状态（绿色茶杯插画） -->
+        <LinearLayout
+            android:id="@+id/content_empty"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:src="@drawable/i_cafe_green"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/rest_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="12sp"
+                android:textColor="@color/w_text3"
+                android:maxLines="1"
+                android:text="好好休息一下吧" />
+        </LinearLayout>
+
+        <!-- 下一节课预告框（今天无课=中性 / 课程已结束=暖橙；日历图标、无进度环） -->
+        <LinearLayout
+            android:id="@+id/next_box"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/w_box_gray"
+            android:paddingLeft="10dp"
+            android:paddingRight="10dp"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/next_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="9sp"
+                    android:textColor="@color/w_text3"
+                    android:text="下一节课" />
+
+                <TextView
+                    android:id="@+id/next_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/w_text2"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="明天 08:00 · 大学英语" />
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/next_calendar"
+                android:layout_width="15dp"
+                android:layout_height="15dp"
+                android:src="@drawable/i_event_gray"
+                android:contentDescription="@null" />
+        </LinearLayout>
+    </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 进度环：轨道(状态浅底) + 进度弧(状态主色)，ProgressBar progress 驱动 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <stroke
+                android:width="4dp"
+                android:color="@color/w_purple_badge" />
+        </shape>
+    </item>
+    <item>
+        <rotate
+            android:fromDegrees="270"
+            android:toDegrees="630"
+            android:pivotX="50%"
+            android:pivotY="50%">
+            <shape android:shape="oval">
+                <stroke
+                    android:width="4dp"
+                    android:color="@color/w_purple" />
+            </shape>
+        </rotate>
+    </item>
+</layer-list>

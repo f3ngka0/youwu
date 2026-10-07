@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" rx="180" fill="#174B8E"/>
+
+  <!-- Simplified school dome -->
+  <path fill="#fff" d="M432 300c0-62 36-108 80-108s80 46 80 108H432Z"/>
+  <rect x="496" y="126" width="32" height="82" rx="16" fill="#fff"/>
+  <rect x="452" y="294" width="120" height="24" rx="12" fill="#fff"/>
+
+  <!-- School facade -->
+  <path fill="#fff" d="M410 318h204v132H410z"/>
+  <path fill="#174B8E" d="M442 380c0-18 12-32 28-32s28 14 28 32v42h-56v-42Zm84 0c0-18 12-32 28-32s28 14 28 32v42h-56v-42Z"/>
+
+  <!-- Calendar -->
+  <rect x="210" y="430" width="604" height="440" rx="52" fill="#fff"/>
+  <rect x="278" y="402" width="48" height="92" rx="24" fill="#fff"/>
+  <rect x="698" y="402" width="48" height="92" rx="24" fill="#fff"/>
+
+  <!-- Minimal schedule blocks -->
+  <rect x="280" y="560" width="170" height="64" rx="20" fill="#174B8E"/>
+  <rect x="574" y="650" width="170" height="64" rx="20" fill="#174B8E"/>
+  <rect x="405" y="750" width="170" height="64" rx="20" fill="#174B8E"/>
+</svg>

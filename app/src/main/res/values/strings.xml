@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">有梧</string>
+    <string name="widget_2x2_label">下一节课</string>
+    <string name="widget_2x2_description">一眼看到下一节课、倒计时和教室</string>
+    <string name="widget_4x2_label">下一节课 · 今日概览</string>
+    <string name="widget_4x2_description">下一节课倒计时，附今日课程时间轴</string>
+</resources>

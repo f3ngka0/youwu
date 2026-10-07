@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     前景：白色学校（穹顶 + 檐线 + 门脸）+ 白色日历（含蓝色课表块），源自设计稿
+     course_schedule_icon_simple-1.svg（1024×1024）。
+
+     安全区适配：
+     - 画布 108×108dp，launcher 安全区为中央 66dp 直径圆（r=33dp）；
+     - 原 SVG 内容绕中心 (512,512) 的最远点是日历底部两角 (210,870)/(814,870)，
+       距中心 ≈468.3 单位；缩放 0.07 后 ≈32.8dp < 33dp，穹顶顶点/日历左右缘更近；
+     - 故整组内容 translate(18.16,18.16) scale(0.07) 后完全落在安全区内，
+       圆形 / 圆角方形 / squircle 等任何 mask（最小可见直径 72dp）均不裁切；
+     - 蓝色窗户与课表块 (#174B8E) 与纯色背景同色，叠合后与原设计视觉一致。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:translateX="18.16"
+        android:translateY="18.16"
+        android:scaleX="0.07"
+        android:scaleY="0.07">
+
+        <!-- 学校穹顶 -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M432,300 c0,-62,36,-108,80,-108 s80,46,80,108 H432 Z" />
+
+        <!-- 穹顶顶杆（竖胶囊 496,126 32×82 r16） -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M512,126 A16,16 0 0 1 528,142 L528,192 A16,16 0 0 1 512,208 A16,16 0 0 1 496,192 L496,142 A16,16 0 0 1 512,126 Z" />
+
+        <!-- 檐线（横胶囊 452,294 120×24 r12） -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M464,294 L560,294 A12,12 0 0 1 560,318 L464,318 A12,12 0 0 1 464,294 Z" />
+
+        <!-- 门脸（410,318 204×132） -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M410,318 L614,318 L614,450 L410,450 Z" />
+
+        <!-- 门脸窗户（蓝，同背景色） -->
+        <path
+            android:fillColor="#FF174B8E"
+            android:pathData="M442,380 c0,-18,12,-32,28,-32 s28,14,28,32 v42 h-56 v-42 Z m84,0 c0,-18,12,-32,28,-32 s28,14,28,32 v42 h-56 v-42 Z" />
+
+        <!-- 日历主体（210,430 604×440 r52） -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M262,430 L762,430 A52,52 0 0 1 814,482 L814,818 A52,52 0 0 1 762,870 L262,870 A52,52 0 0 1 210,818 L210,482 A52,52 0 0 1 262,430 Z" />
+
+        <!-- 日历挂环 ×2（竖胶囊 48×92 r24） -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M302,402 A24,24 0 0 1 326,426 L326,470 A24,24 0 0 1 302,494 A24,24 0 0 1 278,470 L278,426 A24,24 0 0 1 302,402 Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M722,402 A24,24 0 0 1 746,426 L746,470 A24,24 0 0 1 722,494 A24,24 0 0 1 698,470 L698,426 A24,24 0 0 1 722,402 Z" />
+
+        <!-- 课表块 ×3（蓝，同背景色，170×64 r20） -->
+        <path
+            android:fillColor="#FF174B8E"
+            android:pathData="M300,560 L430,560 A20,20 0 0 1 450,580 L450,604 A20,20 0 0 1 430,624 L300,624 A20,20 0 0 1 280,604 L280,580 A20,20 0 0 1 300,560 Z" />
+        <path
+            android:fillColor="#FF174B8E"
+            android:pathData="M594,650 L724,650 A20,20 0 0 1 744,670 L744,694 A20,20 0 0 1 724,714 L594,714 A20,20 0 0 1 574,694 L574,670 A20,20 0 0 1 594,650 Z" />
+        <path
+            android:fillColor="#FF174B8E"
+            android:pathData="M425,750 L555,750 A20,20 0 0 1 575,770 L575,794 A20,20 0 0 1 555,814 L425,814 A20,20 0 0 1 405,794 L405,770 A20,20 0 0 1 425,750 Z" />
+    </group>
+</vector>

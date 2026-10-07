@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 今日课程高亮行（状态浅底，12dp 圆角） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/w_green_soft" />
+    <corners android:radius="12dp" />
+</shape>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget 白卡：28dp 圆角（RemoteViews 无柔和阴影，靠圆角与留白分层） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/w_card" />
+    <corners android:radius="28dp" />
+</shape>

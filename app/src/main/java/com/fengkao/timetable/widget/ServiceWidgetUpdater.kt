@@ -93,12 +93,14 @@ object ServiceWidgetUpdater {
             setTextViewText(R.id.service_widget_title, if (shower) "洗澡" else "喝水")
             setTextColor(R.id.service_widget_title, ink)
             setTextViewText(R.id.service_widget_target, visual.deviceName ?: "尚未绑定设备")
+            setContentDescription(R.id.service_widget_target, visual.deviceName ?: "尚未绑定设备")
             setTextViewText(R.id.service_widget_account, visual.accountLabel)
             setViewVisibility(R.id.service_widget_account, if (visual.accountLabel.isBlank()) View.GONE else View.VISIBLE)
             setTextViewText(R.id.service_widget_status, visual.status)
-            setViewVisibility(R.id.service_widget_status, if (visual.status.isBlank()) View.GONE else View.VISIBLE)
+            setViewVisibility(R.id.service_widget_status, if (visual.status.isBlank() || visual.accountLabel.isNotBlank()) View.GONE else View.VISIBLE)
             setInt(R.id.service_widget_action, "setBackgroundResource", if (shower) R.drawable.widget_shower_action else R.drawable.widget_water_action)
             setTextViewText(R.id.service_widget_action, visual.action)
+            setContentDescription(R.id.service_widget_action, listOf(visual.action, visual.status).filter(String::isNotBlank).joinToString("，"))
             setContentDescription(R.id.service_widget_settings, "重新绑定组件设备和账户")
         }
     }

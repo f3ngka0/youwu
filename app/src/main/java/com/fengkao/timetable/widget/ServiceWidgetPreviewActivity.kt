@@ -17,6 +17,8 @@ class ServiceWidgetPreviewActivity : ComponentActivity() {
         enableEdgeToEdge()
         val demo = intent.getBooleanExtra("demo", false)
         val screenshot = intent.getBooleanExtra("screenshot", false)
+        val compact = intent.getBooleanExtra("compact", false)
+        val longNames = intent.getBooleanExtra("longNames", false)
         val root = ScrollView(this).apply { setBackgroundColor(0xFFF6F7F9.toInt()) }
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -30,8 +32,8 @@ class ServiceWidgetPreviewActivity : ComponentActivity() {
             val shower = service == WidgetService.SHOWER
             column.addView(TextView(this).apply { text = "${if (shower) "洗澡" else "喝水"} · 2×2"; textSize = 16f; setTextColor(0xFF202124.toInt()); setPadding(0, dp(8), 0, dp(12)) })
             val slot = FrameLayout(this)
-            column.addView(slot, LinearLayout.LayoutParams(dp(180), dp(180)))
-            val visual = if (demo) ServiceWidgetVisual(service, if (shower) "浴室 · 3号热水器" else "教学楼一层 · 饮水机",
+            column.addView(slot, LinearLayout.LayoutParams(dp(if (compact) 144 else 180), dp(if (compact) 144 else 180)))
+            val visual = if (demo) ServiceWidgetVisual(service, if (shower) { if (longNames) "热水表-光华宿舍A区-5层-516" else "浴室 · 3号热水器" } else "教学楼一层 · 饮水机",
                 if (shower) "宿舍账户" else "", if (shower) "开启热水" else "启动饮水", "")
                 else ServiceWidgetVisual(service, null)
             slot.addView(ServiceWidgetUpdater.render(this, visual).apply(this, slot))

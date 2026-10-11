@@ -15,6 +15,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.io.IOException
 
+data class SecondaryShowerLogin(
+    val phone: String = "", val secret: String = "", val smsMode: Boolean = true,
+    val smsSeconds: Int = 0, val message: String? = null, val error: Boolean = false, val complete: Boolean = false,
+) { val validPhone get() = phone.matches(Regex("1\\d{10}")) }
+
 data class ShowerUiState(
     val loggedIn: Boolean = false, val phone: String = "", val secret: String = "", val smsMode: Boolean = true,
     val smsSeconds: Int = 0, val busy: Boolean = false, val devices: List<ShowerDevice> = emptyList(),
@@ -23,6 +28,8 @@ data class ShowerUiState(
     val refreshFailed: Boolean = false, val balance: ShowerBalance? = null, val balanceError: String? = null,
     val scanning: Boolean = false, val scanError: String? = null, val scanCompleted: Boolean = false,
     val nearby: List<NearbyShower> = emptyList(),
+    val accounts: List<String> = emptyList(), val selectedAccountPhone: String = "",
+    val secondLogin: SecondaryShowerLogin = SecondaryShowerLogin(), val confirming: Boolean = false,
 ) {
     val device get() = devices.firstOrNull { it.sn == selected }
     val validPhone get() = phone.matches(Regex("1\\d{10}"))
@@ -34,14 +41,15 @@ class ShowerViewModel(application: Application) : AndroidViewModel(application) 
     private val scanner = ShowerScanner(application)
     private val ble = ShowerBleController(application, api)
     private var scanJob: Job? = null
-    private var auth = store.auth()
+    private var auth = store.activeAuth()
     private val savedBle = store.bleSession()
     private val savedDevices = store.devices().let { devices ->
         if (savedBle != null && devices.none { it.sn == savedBle.sn })
             devices + ShowerDevice(savedBle.sn, "当前用水设备", savedBle.mac, bluetoothOnly = true)
         else devices
     }
-    private val _state = MutableStateFlow(ShowerUiState(loggedIn = auth != null, phone = store.phone(),
+    private val _state = MutableStateFlow(ShowerUiState(loggedIn = auth != null, phone = store.activePhone(),
+        accounts = store.accounts().map { it.phone }, selectedAccountPhone = store.activePhone(),
         devices = savedDevices, selected = savedBle?.sn ?: store.selected(), unknown = store.pending(),
         active = savedBle != null && !store.pending(), owner = savedBle != null, order = savedBle?.orderNo.orEmpty()))
     val state = _state.asStateFlow()
@@ -65,7 +73,7 @@ class ShowerViewModel(application: Application) : AndroidViewModel(application) 
             io { store.expire() }; auth = null
             stopScan()
             ble.disconnect()
-            _state.update { it.copy(loggedIn = false, secret = "", balance = null, balanceError = null, message = "已退出洗澡账户") }
+            _state.update { it.copy(loggedIn = false, phone = store.phone(), secret = "", accounts = emptyList(), selectedAccountPhone = "", secondLogin = SecondaryShowerLogin(), balance = null, balanceError = null, message = "已退出洗澡账户") }
         }
     }
     fun phone(value: String) { _state.update { it.copy(phone = value.filter(Char::isDigit).take(11), secret = "", message = null) } }
@@ -81,15 +89,16 @@ class ShowerViewModel(application: Application) : AndroidViewModel(application) 
             catch (e: Exception) {
                 if (e is ShowerSessionExpired) {
                     stopScan()
-                    store.expire(); auth = null
-                    _state.update { it.copy(loggedIn = false, secret = "", balance = null) }
+                    store.expireAccount(auth?.phone ?: store.activePhone()); auth = null
+                    _state.update { it.copy(loggedIn = false, phone = store.activePhone(), secret = "", balance = null,
+                        accounts = store.accounts().map { it.phone }, selectedAccountPhone = store.activePhone()) }
                 }
                 message(when (e) {
                     is java.net.UnknownHostException -> "无法连接洗澡服务，请检查网络"
                     is java.net.SocketTimeoutException -> "连接超时，请刷新设备状态后重试"
                     else -> e.message ?: "操作失败，请重试"
                 })
-            } finally { _state.update { it.copy(busy = false) } }
+            } finally { _state.update { it.copy(busy = false, confirming = false) } }
         }
     }
     private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
@@ -114,15 +123,97 @@ class ShowerViewModel(application: Application) : AndroidViewModel(application) 
     fun login() {
         val s = _state.value
         if (!s.validPhone || s.secret.isBlank()) return
+        if ((store.pending() || store.bleSession() != null) && s.phone != store.controllingPhone())
+            return message("请用当前用水账户的手机号重新登录")
         action {
             try {
                 val account = io { api.login(s.phone, s.secret, s.smsMode) }
                 io { store.login(account) }
                 auth = account
                 _state.update { it.copy(loggedIn = true, devices = store.devices(), selected = store.selected(),
+                    accounts = store.accounts().map { account -> account.phone }, selectedAccountPhone = account.phone,
                     active = false, owner = false, order = "", unknown = store.pending()) }
                 refreshAll()
             } finally { _state.update { it.copy(secret = "") } }
+        }
+    }
+    private fun accountChangesAllowed(): Boolean {
+        val s = _state.value
+        return canChangeShowerAccount(s.busy, s.active, s.unknown, store.pending(), store.bleSession() != null)
+    }
+    fun selectAccount(phone: String) {
+        if (phone == _state.value.selectedAccountPhone) return
+        if (!accountChangesAllowed()) return message("请先结束用水并确认状态，再切换账户")
+        val next = store.accounts().firstOrNull { it.phone == phone } ?: return
+        action {
+            io { store.selectAccount(phone) }
+            auth = next
+            _state.update { it.copy(phone = phone, selectedAccountPhone = phone, balance = null,
+                balanceError = null, message = null, active = false, owner = false, order = "") }
+            refreshAll()
+        }
+    }
+    fun beginSecondLogin() {
+        if (!accountChangesAllowed()) return
+        _state.update { it.copy(secondLogin = it.secondLogin.copy(phone = store.secondaryPhone(), secret = "",
+            message = null, error = false, complete = false)) }
+    }
+    fun secondPhone(value: String) { if (!_state.value.busy) _state.update {
+        it.copy(secondLogin = it.secondLogin.copy(phone = value.filter(Char::isDigit).take(11), secret = "", message = null, complete = false))
+    } }
+    fun secondSecret(value: String) { if (!_state.value.busy) _state.update {
+        it.copy(secondLogin = it.secondLogin.copy(secret = if (it.secondLogin.smsMode) value.filter(Char::isDigit).take(8) else value.take(128)))
+    } }
+    fun secondMode() { if (!_state.value.busy) _state.update {
+        it.copy(secondLogin = it.secondLogin.copy(smsMode = !it.secondLogin.smsMode, secret = "", message = null))
+    } }
+    private fun secondaryAction(block: suspend () -> Unit) {
+        if (!accountChangesAllowed() || !_state.value.loggedIn) return
+        _state.update { it.copy(busy = true, secondLogin = it.secondLogin.copy(message = null, error = false)) }
+        viewModelScope.launch {
+            try { block() }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { _state.update { it.copy(secondLogin = it.secondLogin.copy(
+                message = e.message ?: "第二账户登录失败，请重试", error = true)) } }
+            finally { _state.update { it.copy(busy = false) } }
+        }
+    }
+    fun secondSms() {
+        val s = _state.value.secondLogin
+        if (!s.validPhone || s.smsSeconds > 0) return
+        if (s.phone == store.phone()) {
+            _state.update { it.copy(secondLogin = it.secondLogin.copy(message = "请填写另一个手机号", error = true)) }; return
+        }
+        secondaryAction {
+            io { api.sendSms(s.phone) }
+            _state.update { it.copy(secondLogin = it.secondLogin.copy(smsSeconds = 60, message = "短信已发送，请查收")) }
+            val end = SystemClock.elapsedRealtime() + 60_000
+            viewModelScope.launch {
+                do {
+                    delay(1000)
+                    val seconds = ((end - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0)
+                    _state.update { it.copy(secondLogin = it.secondLogin.copy(smsSeconds = seconds)) }
+                } while (seconds > 0)
+            }
+        }
+    }
+    fun loginSecond() {
+        val s = _state.value.secondLogin
+        if (!s.validPhone || s.secret.isBlank()) return
+        if (s.phone == store.phone()) {
+            _state.update { it.copy(secondLogin = it.secondLogin.copy(message = "请填写另一个手机号", error = true)) }; return
+        }
+        secondaryAction {
+            try {
+                val account = io { api.login(s.phone, s.secret, s.smsMode).also(api::validate) }
+                io { store.loginSecondary(account) }
+                val previousPhone = auth?.phone
+                auth = store.activeAuth()
+                _state.update { it.copy(accounts = store.accounts().map { saved -> saved.phone },
+                    phone = auth?.phone ?: store.activePhone(), selectedAccountPhone = store.activePhone(),
+                    balance = it.balance.takeIf { previousPhone == auth?.phone },
+                    secondLogin = it.secondLogin.copy(complete = true, secret = "", message = null)) }
+            } finally { _state.update { it.copy(secondLogin = it.secondLogin.copy(secret = "")) } }
         }
     }
     fun enter() { if (auth != null) refresh() }
@@ -226,27 +317,34 @@ class ShowerViewModel(application: Application) : AndroidViewModel(application) 
         if (s.active || s.unknown) return
         if (!blePermitted()) return message("请允许蓝牙连接权限后开水")
         action {
-            io { store.pending(true) }
-            _state.update { it.copy(unknown = true) }
+            io { store.pending(true, account.phone) }
+            _state.update { it.copy(unknown = true, confirming = true) }
             when (val result = ble.open(device, account, store.bleSession()) { prepared -> store.bleSession(prepared) }) {
                 is BleOpenResult.Opened, is BleOpenResult.Resumed -> {
                     val session = if (result is BleOpenResult.Opened) result.session else (result as BleOpenResult.Resumed).session
                     io { store.bleSession(session); store.pending(false) }
                     _state.update { it.copy(active = true, owner = true, order = session.orderNo,
-                        unknown = false, message = "蓝牙开水成功，结束后请在设备旁关水") }
+                        unknown = false, confirming = false, message = "蓝牙开水成功，结束后请在设备旁关水") }
                 }
                 is BleOpenResult.Recovered -> {
                     ble.disconnect()
                     io { store.bleSession(null); store.pending(false) }
-                    _state.update { it.copy(active = false, owner = false, unknown = false, message = result.message) }
+                    _state.update { it.copy(active = false, owner = false, unknown = false, confirming = false, message = result.message) }
                 }
                 is BleOpenResult.Failed -> {
                     ble.disconnect()
                     io { store.pending(false) }
-                    _state.update { it.copy(unknown = false) }
+                    _state.update { it.copy(unknown = false, confirming = false) }
                     throw IOException(result.message)
                 }
-                is BleOpenResult.Unconfirmed -> throw IOException(result.message)
+                is BleOpenResult.Unconfirmed -> {
+                    val session = store.bleSession()
+                    val running = session != null && awaitShowerOpening { ble.confirmRunning(session, account) }
+                    if (!running) throw IOException(result.message)
+                    io { store.pending(false) }
+                    _state.update { it.copy(active = true, owner = true, order = session.orderNo,
+                        unknown = false, confirming = false, message = "蓝牙开水成功") }
+                }
             }
         }
     }
@@ -259,13 +357,13 @@ class ShowerViewModel(application: Application) : AndroidViewModel(application) 
         action {
             val session = store.bleSession()
             if (session != null) {
-                io { store.pending(true) }
-                _state.update { it.copy(unknown = true) }
+                io { store.pending(true, account.phone) }
+                _state.update { it.copy(unknown = true, confirming = true) }
                 when (val result = ble.close(session, account)) {
                     BleInspection.Settled -> {
                         ble.disconnect()
                         io { store.bleSession(null); store.pending(false) }
-                        _state.update { it.copy(active = false, owner = false, order = "", unknown = false,
+                        _state.update { it.copy(active = false, owner = false, order = "", unknown = false, confirming = false,
                             message = "已关水并完成结算") }
                         refreshAll()
                     }
@@ -280,8 +378,8 @@ class ShowerViewModel(application: Application) : AndroidViewModel(application) 
             if (!current.owner) { updateOrder(current); throw IOException("该设备正在被他人使用") }
             val number = current.number.ifBlank { s.order }
             if (number.isBlank()) throw IOException("订单号暂未返回，请刷新后再关水")
-            io { store.pending(true) }
-            _state.update { it.copy(unknown = true) }
+            io { store.pending(true, account.phone) }
+            _state.update { it.copy(unknown = true, confirming = true) }
             try { io { api.stop(account, cloudDevice.sn, number) } }
             catch (e: ShowerSessionExpired) { throw e }
             catch (_: Exception) { throw IOException("关水结果未确认，请查看设备并刷新状态") }

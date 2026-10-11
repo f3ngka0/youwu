@@ -76,6 +76,31 @@ class DemoActivity : ComponentActivity() {
                 devices = listOf(ShowerDevice("DEMO-SHOWER-01", "示例热水器 · 演示浴室", "000000000001", true),
                     ShowerDevice("DEMO-SHOWER-02", "示例热水器 · 备用设备", "000000000002", true)),
                 selected = "DEMO-SHOWER-01", balance = ShowerBalance("20.00", "演示余额")))
+            // Optional screenshot states stay inside the permission-free demo build.
+            when (intent.getStringExtra("serviceState")) {
+                "accounts" -> setState(shower, shower.state.value.copy(phone = "13800001234",
+                    accounts = listOf("13800001234", "13900005678"), selectedAccountPhone = "13800001234"))
+                "single" -> {
+                    setState(water, water.state.value.copy(devices = water.state.value.devices.take(1)))
+                    setState(shower, shower.state.value.copy(devices = shower.state.value.devices.take(1)))
+                }
+                "empty" -> {
+                    setState(water, water.state.value.copy(devices = emptyList(), selectedId = ""))
+                    setState(shower, shower.state.value.copy(devices = emptyList(), selected = ""))
+                }
+                "busy" -> {
+                    setState(water, water.state.value.copy(busy = true))
+                    setState(shower, shower.state.value.copy(busy = true))
+                }
+                "error" -> {
+                    setState(water, water.state.value.copy(refreshFailed = true, error = true, message = "设备更新失败，请重试"))
+                    setState(shower, shower.state.value.copy(refreshFailed = true, error = true, message = "设备更新失败，请重试"))
+                }
+                "active" -> setState(shower, shower.state.value.copy(active = true, owner = true))
+                "occupied" -> setState(shower, shower.state.value.copy(active = true, owner = false))
+                "unknown" -> setState(shower, shower.state.value.copy(unknown = true))
+                "started" -> setState(water, water.state.value.copy(startSeconds = 8))
+            }
             main.setTab(when (screen) { "water", "water-login" -> 1; "shower", "shower-login" -> 2; "profile" -> 3; else -> 0 })
             if (screen == "welcome") {
                 container.settings.restartWelcome()

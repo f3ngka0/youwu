@@ -58,8 +58,8 @@ internal fun SettingsSection(title: String? = null, danger: Boolean = false, con
 @Composable
 internal fun SettingsItem(title: String, icon: ImageVector, subtitle: String? = null, value: String? = null,
     enabled: Boolean = true, danger: Boolean = false, divider: Boolean = false,
-    valueColor: Color = InkGray, onClick: () -> Unit) {
-    SettingsRow(title, icon, subtitle, enabled, danger, onClick) {
+    valueColor: Color = InkGray, iconTint: Color = BrandGreen, onClick: () -> Unit) {
+    SettingsRow(title, icon, subtitle, enabled, danger, onClick, iconTint = iconTint) {
         if (value != null) Text(value, color = valueColor, fontSize = 12.sp)
         Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = if (danger) DangerFg else InkGray, modifier = Modifier.size(20.dp))
     }
@@ -89,11 +89,11 @@ internal fun AccountItem(title: String, icon: ImageVector, account: String, logg
 
 @Composable
 private fun SettingsRow(title: String, icon: ImageVector, subtitle: String?, enabled: Boolean, danger: Boolean,
-    onClick: () -> Unit, subtitleColor: Color = InkGray, trailing: @Composable RowScope.() -> Unit) {
+    onClick: () -> Unit, subtitleColor: Color = InkGray, iconTint: Color = BrandGreen, trailing: @Composable RowScope.() -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).heightIn(min = if (subtitle == null) 56.dp else 72.dp)
         .padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(icon, null, tint = (if (danger) DangerFg else BrandGreen).copy(alpha = if (enabled) 1f else .4f), modifier = Modifier.size(24.dp))
+        Icon(icon, null, tint = (if (danger) DangerFg else iconTint).copy(alpha = if (enabled) 1f else .4f), modifier = Modifier.size(24.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = if (danger) DangerFg else InkDark)
             if (!subtitle.isNullOrBlank()) Text(subtitle, fontSize = 12.sp, lineHeight = 17.sp, color = subtitleColor, modifier = Modifier.padding(top = 3.dp))

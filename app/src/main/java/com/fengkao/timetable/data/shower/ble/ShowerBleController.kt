@@ -12,10 +12,10 @@ import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
 
 /** Local transaction details are persisted before the command that may open the valve. */
-data class BleSession(val sn: String, val mac: String, val consumeDate: String, val orderNo: String) {
-    fun json() = JSONObject().put("sn", sn).put("mac", mac).put("consumeDate", consumeDate).put("orderNo", orderNo)
+data class BleSession(val sn: String, val mac: String, val consumeDate: String, val orderNo: String, val accountPhone: String = "") {
+    fun json() = JSONObject().put("sn", sn).put("mac", mac).put("consumeDate", consumeDate).put("orderNo", orderNo).put("accountPhone", accountPhone)
     companion object { fun from(json: JSONObject) = BleSession(json.getString("sn"), json.getString("mac"),
-        json.optString("consumeDate"), json.optString("orderNo")) }
+        json.optString("consumeDate"), json.optString("orderNo"), json.optString("accountPhone")) }
 }
 
 sealed interface BleOpenResult {
@@ -46,6 +46,7 @@ class ShowerBleController(context: Context, private val api: ShowerApi) {
 
     suspend fun open(device: ShowerDevice, auth: ShowerAuth, previous: BleSession?,
         onPrepared: (BleSession) -> Unit): BleOpenResult {
+        require(previous == null || previous.accountPhone.isBlank() || previous.accountPhone == auth.phone) { "请使用开水时的账户" }
         if (!device.controlMac.matches(Regex("[0-9A-F]{12}"))) return BleOpenResult.Failed("设备蓝牙地址无效，请重新绑定")
         connect(device.controlMac)?.let { return BleOpenResult.Failed(it) }
         val state = ble.query() ?: return BleOpenResult.Failed("设备未响应，请靠近热水器重试")
@@ -64,14 +65,23 @@ class ShowerBleController(context: Context, private val api: ShowerApi) {
             catch (e: CancellationException) { throw e }
             catch (e: ShowerSessionExpired) { throw e }
             catch (e: Exception) { return BleOpenResult.Failed(e.message ?: "获取蓝牙费率失败") }
-        val session = BleSession(device.sn, device.controlMac, rate.consumeDate, rate.orderNo)
+        val session = BleSession(device.sn, device.controlMac, rate.consumeDate, rate.orderNo, auth.phone)
         onPrepared(session)
         // From here on a timeout is unknown, never a safe retry.
         return if (ble.writeRate(rate.data)) BleOpenResult.Opened(session)
         else BleOpenResult.Unconfirmed("开水指令已发送，但设备未确认。请核对水流后刷新状态")
     }
 
+    /** Read-only confirmation: do not send another rate or settle a bill while waiting. */
+    suspend fun confirmRunning(session: BleSession, auth: ShowerAuth): Boolean {
+        require(session.accountPhone.isBlank() || session.accountPhone == auth.phone) { "请使用开水时的账户" }
+        if (connect(session.mac) != null) return false
+        val state = ble.query(timeoutMs = 1_000) ?: return false
+        return state.state != 0 && state.state != 3 && state.state != 6
+    }
+
     suspend fun inspect(session: BleSession, auth: ShowerAuth): BleInspection {
+        require(session.accountPhone.isBlank() || session.accountPhone == auth.phone) { "请使用开水时的账户" }
         connect(session.mac)?.let { return BleInspection.Pending(it) }
         val state = ble.query() ?: return BleInspection.Pending("设备未响应，请靠近后重试")
         return when (state.state) {
@@ -85,6 +95,7 @@ class ShowerBleController(context: Context, private val api: ShowerApi) {
     }
 
     suspend fun close(session: BleSession, auth: ShowerAuth): BleInspection {
+        require(session.accountPhone.isBlank() || session.accountPhone == auth.phone) { "请使用开水时的账户" }
         connect(session.mac)?.let { return BleInspection.Pending(it) }
         val before = ble.query() ?: return BleInspection.Pending("设备未响应，未发送关水指令")
         if (before.state == 0) return BleInspection.Settled

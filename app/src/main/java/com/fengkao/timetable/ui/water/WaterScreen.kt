@@ -8,7 +8,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -17,8 +16,6 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import com.fengkao.timetable.ui.navigation.PageStack
 import com.fengkao.timetable.ui.profile.SettingsItem
 import com.fengkao.timetable.ui.profile.SettingsSection
 import androidx.compose.ui.Alignment
@@ -45,9 +42,10 @@ fun WaterScreen(model: WaterViewModel = viewModel()) {
 }
 
 @Composable
-internal fun LifeTheme(content: @Composable () -> Unit) {
+internal fun LifeTheme(kind: ServiceKind = ServiceKind.Drinking, content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(
-        primary = BrandGreen, onPrimary = Color.White,
+        primary = kind.ink, onPrimary = if (IsDark) Color(0xFF1C1C20) else Color.White,
+        primaryContainer = kind.soft, onPrimaryContainer = kind.ink,
         surface = CardWhite, onSurface = InkDark, onSurfaceVariant = InkMid,
         background = SageBg, onBackground = InkDark,
     ), content = content)
@@ -57,8 +55,6 @@ internal fun LifeTheme(content: @Composable () -> Unit) {
 private fun WaterScreenContent(model: WaterViewModel) {
     val s by model.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val holder = rememberSaveableStateHolder()
-    var managing by rememberSaveable { mutableStateOf(false) }
     var manual by rememberSaveable { mutableStateOf(false) }
     val scanner = rememberLauncherForActivityResult(ScanContract()) { it.contents?.let(model::bind) }
     fun scan() { scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
@@ -75,26 +71,17 @@ private fun WaterScreenContent(model: WaterViewModel) {
         if (active) model.enter()
         onPauseOrDispose { }
     }
-    PageStack(if (managing && s.loggedIn) listOf("water", "devices") else listOf("water"), { managing = false }) { page ->
-        holder.SaveableStateProvider(page) {
-            LifePage {
-                if (page == "devices") {
-                    DeviceManagementHeader { managing = false }
-                    WaterDeviceManager(s, model, ::requestScan) { manual = true }
-                } else {
-                    LifeHeader("喝水", if (s.loggedIn) "一键启动，轻松接水" else "登录后连接校园饮水设备", Icons.Outlined.WaterDrop)
-                    if (!s.loggedIn) WaterLogin(s, model) else {
-                        ServiceDeviceCard(s.device?.name, Icons.Outlined.LocalDrink,
-                            when { s.busy -> "正在更新设备…"; s.refreshFailed -> "设备更新失败"; s.device == null -> "扫描饮水机二维码，添加第一台设备"; else -> "准备就绪" },
-                            s.busy, if (s.startSeconds > 0) "已启动 · ${s.startSeconds}s" else "启动饮水设备",
-                            s.device != null && !s.busy && s.startSeconds == 0, "启动后，在设备上选择水温并接水", model::start)
-                        if (s.device != null) DeviceManagementEntry { managing = true }
-                        else WaterDeviceManager(s, model, ::requestScan) { manual = true }
-                    }
-                }
-                ServiceMessage(s.message, s.error, s.loggedIn && (s.refreshFailed || s.error), s.busy, model::refresh)
-            }
+    LifePage {
+        LifeHeader("喝水", "校园饮水", Icons.Outlined.WaterDrop)
+        if (!s.loggedIn) WaterLogin(s, model) else {
+            ServiceDeviceCard(s.device?.name, Icons.Outlined.LocalDrink,
+                when { s.busy -> "正在更新设备…"; s.refreshFailed -> "设备更新失败"; s.device == null -> "扫描饮水机二维码，添加第一台设备"; else -> "" },
+                s.busy, if (s.startSeconds > 0) "已启动 · ${s.startSeconds}s" else "启动饮水设备",
+                s.device != null && !s.busy && s.startSeconds == 0,
+                "启动后，在设备上选择水温并接水", model::start)
+            WaterBindingActions(s, model, ::requestScan) { manual = true }
         }
+        ServiceMessage(s.message, s.error, s.loggedIn && (s.refreshFailed || s.error), s.busy, model::refresh)
     }
     if (manual && s.loggedIn) {
         var raw by rememberSaveable { mutableStateOf("") }
@@ -106,12 +93,16 @@ private fun WaterScreenContent(model: WaterViewModel) {
 }
 
 @Composable
-private fun WaterDeviceManager(s: WaterUiState, model: WaterViewModel, scan: () -> Unit, manual: () -> Unit) {
+private fun WaterBindingActions(s: WaterUiState, model: WaterViewModel, scan: () -> Unit, manual: () -> Unit) {
     SettingsSection {
-        SettingsItem("扫码绑定", Icons.Outlined.QrCodeScanner, enabled = !s.busy, divider = true, onClick = scan)
-        SettingsItem("手动输入设备编号", Icons.Outlined.Edit, enabled = !s.busy, onClick = manual)
+        SettingsItem("扫码绑定", Icons.Outlined.QrCodeScanner, "扫描饮水机二维码",
+            enabled = !s.busy, iconTint = ServiceKind.Drinking.ink, onClick = scan)
     }
-    if (s.devices.isNotEmpty()) SettingsSection("更换设备") {
+    SettingsSection {
+        SettingsItem("手动输入设备编号", Icons.Outlined.Edit, "输入设备编号或二维码内容",
+            enabled = !s.busy, iconTint = ServiceKind.Drinking.ink, onClick = manual)
+    }
+    if (s.devices.size > 1) SettingsSection("更换设备") {
         s.devices.forEach { device ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(device.id == s.selectedId, onClick = { model.select(device.id) }, enabled = !s.busy)
@@ -127,7 +118,7 @@ private fun WaterDeviceManager(s: WaterUiState, model: WaterViewModel, scan: () 
 
 @Composable
 internal fun WaterLogin(s: WaterUiState, model: WaterViewModel, showHeading: Boolean = true,
-    submitLabel: String = "登录并开始使用") {
+    submitLabel: String = "登录喝水账户") {
     LifeCard {
         if (showHeading) {
             Text("登录喝水账户", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = InkDark)
@@ -158,7 +149,7 @@ internal fun WaterLogin(s: WaterUiState, model: WaterViewModel, showHeading: Boo
         Spacer(Modifier.height(22.dp))
         Button(onClick = model::login, enabled = !s.busy && s.validPhone && s.smsCode.isNotBlank() && s.configured,
             modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = BrandGreen)) {
+            colors = ButtonDefaults.buttonColors(containerColor = ServiceKind.Drinking.action, contentColor = Color.White)) {
             if (s.busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
             else Text(submitLabel, fontWeight = FontWeight.SemiBold)
         }
@@ -175,15 +166,15 @@ internal fun LifePage(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-internal fun LifeHeader(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+internal fun LifeHeader(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector,
+    kind: ServiceKind = ServiceKind.Drinking) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(kind.soft).padding(20.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Icon(icon, null, Modifier.size(44.dp), tint = kind.ink)
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = InkDark)
             Spacer(Modifier.height(6.dp))
-            Text(subtitle, fontSize = 12.sp, color = InkGray)
-        }
-        Box(Modifier.size(46.dp).clip(CircleShape).background(BrandGreenSoft), contentAlignment = Alignment.Center) {
-            Icon(icon, null, Modifier.size(24.dp), tint = BrandGreen)
+            Text(subtitle, fontSize = 14.sp, color = InkMid)
         }
     }
 }

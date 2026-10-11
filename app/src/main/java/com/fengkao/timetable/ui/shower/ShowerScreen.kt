@@ -43,7 +43,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 
 @Composable
 fun ShowerScreen(model: ShowerViewModel = viewModel()) {
-    LifeTheme { ShowerContent(model) }
+    LifeTheme(ServiceKind.Shower) { ShowerContent(model) }
 }
 
 @Composable
@@ -53,6 +53,7 @@ private fun ShowerContent(model: ShowerViewModel) {
     val holder = rememberSaveableStateHolder()
     var managing by rememberSaveable { mutableStateOf(false) }
     var manual by rememberSaveable { mutableStateOf(false) }
+    var secondLoginOpen by rememberSaveable { mutableStateOf(false) }
     val scanner = rememberLauncherForActivityResult(ScanContract()) { it.contents?.let(model::bind) }
     fun scan() { scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
         .setPrompt("扫描趣智校园热水器二维码").setBeepEnabled(false).setOrientationLocked(false)) }
@@ -111,26 +112,50 @@ private fun ShowerContent(model: ShowerViewModel) {
             LifePage {
                 if (page == "devices") {
                     DeviceManagementHeader { managing = false }
-                    ShowerDeviceManager(s, model, ::requestNearby, ::requestScan) { manual = true }
+                    ShowerDeviceManager(s, model, ::requestNearby, ::requestScan, { model.beginSecondLogin(); secondLoginOpen = true }) { manual = true }
                 } else {
-                    LifeHeader("洗澡", if (s.loggedIn) "温暖随手开启" else "登录后连接浴室热水器", Icons.Outlined.Shower)
+                    LifeHeader("洗澡", "浴室热水", Icons.Outlined.Shower, ServiceKind.Shower)
                     if (!s.loggedIn) ShowerLogin(s, model) else {
-                        ShowerBalanceCard(s, model::refresh)
                         ServiceDeviceCard(s.device?.name, Icons.Outlined.Shower,
-                            when { s.unknown -> "用水状态待确认"; s.active && s.owner -> "正在用水"; s.active -> "设备正在被他人使用"; s.busy -> "正在更新设备…"; s.refreshFailed -> "设备更新失败"; s.device == null -> "优先扫描附近蓝牙热水器"; else -> "准备就绪" },
+                            when { s.confirming -> if (s.active && s.owner) "正在确认关水状态…" else "正在确认开水状态…"; s.unknown -> "用水状态待确认"; s.active && s.owner -> "正在用水"; s.active -> "设备正在被他人使用"; s.busy -> "正在更新设备…"; s.refreshFailed -> "设备更新失败"; s.device == null -> "优先扫描附近蓝牙热水器"; else -> "" },
                             s.busy, if (s.active && s.owner) "蓝牙关水 · 结算" else "蓝牙开水",
                             s.device != null && !s.busy && !s.unknown && (!s.active || s.owner),
-                            "请靠近设备使用蓝牙开关水，结束后确认设备停止出水", ::requestWaterControl)
-                        if (s.device != null) DeviceManagementEntry { managing = true }
-                        else ShowerDeviceManager(s, model, ::requestNearby, ::requestScan) { manual = true }
+                            "靠近设备，用蓝牙开关水。", ::requestWaterControl, kind = ServiceKind.Shower,
+                            beforeAction = {
+                                if (s.accounts.size > 1) {
+                                    Spacer(Modifier.height(16.dp))
+                                    ShowerAccountSelector(s, model::selectAccount)
+                                }
+                            })
+                        ShowerBalanceCard(s, model::refresh)
+                        if (s.devices.size > 1) ShowerDeviceSelector(s, model)
+                        DeviceManagementEntry(ServiceKind.Shower) { managing = true }
                     }
                 }
                 ServiceMessage(s.message, s.error, s.loggedIn && (s.refreshFailed || s.unknown || s.error), s.busy, model::refresh)
-                if (s.unknown && s.message == null) ServiceMessage("用水状态待确认，请查看设备后重试", true, true, s.busy, model::refresh)
+                if (s.unknown && !s.confirming && s.message == null) ServiceMessage("用水状态待确认，请查看设备后重试", true, true, s.busy, model::refresh)
             }
         }
     }
     LaunchedEffect(managing, s.device != null) { if (!managing && s.device != null) model.stopScan() }
+    LaunchedEffect(s.secondLogin.complete) {
+        if (s.secondLogin.complete) secondLoginOpen = false
+    }
+    if (secondLoginOpen && s.loggedIn) {
+        AlertDialog(onDismissRequest = { if (!s.busy) secondLoginOpen = false },
+            title = { Text("登录第二个账户") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    val form = s.secondLogin
+                    ShowerLoginFields(form.phone, form.secret, form.smsMode, form.smsSeconds, s.busy,
+                        model::secondPhone, model::secondSecret, model::secondMode, model::secondSms,
+                        model::loginSecond, "验证并绑定账户")
+                    ServiceMessage(form.message, form.error)
+                }
+            },
+            confirmButton = { TextButton(onClick = { secondLoginOpen = false }, enabled = !s.busy) { Text("取消") } },
+            containerColor = CardWhite)
+    }
     if (manual && s.loggedIn) {
         var raw by rememberSaveable { mutableStateOf("") }
         AlertDialog(onDismissRequest = { manual = false }, title = { Text("绑定洗澡设备") },
@@ -144,7 +169,7 @@ private fun ShowerContent(model: ShowerViewModel) {
 private fun ShowerBalanceCard(s: ShowerUiState, retry: () -> Unit) {
     LifeCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.AccountBalanceWallet, null, tint = BrandGreen, modifier = Modifier.size(24.dp))
+            Icon(Icons.Outlined.AccountBalanceWallet, null, tint = ServiceKind.Shower.ink, modifier = Modifier.size(24.dp))
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(s.balance?.source ?: "账户余额", color = InkGray, fontSize = 12.sp)
                 Text(s.balance?.let { "¥ ${it.amount}" } ?: if (s.busy) "读取中…" else "暂未获取", color = InkDark, fontSize = 22.sp, fontWeight = FontWeight.Bold)
@@ -156,12 +181,15 @@ private fun ShowerBalanceCard(s: ShowerUiState, retry: () -> Unit) {
 }
 
 @Composable
-private fun ShowerDeviceManager(s: ShowerUiState, model: ShowerViewModel, nearby: () -> Unit, scan: () -> Unit, manual: () -> Unit) {
+private fun ShowerDeviceManager(s: ShowerUiState, model: ShowerViewModel, nearby: () -> Unit, scan: () -> Unit, secondLogin: () -> Unit, manual: () -> Unit) {
     val enabled = !s.busy && !s.active && !s.unknown
     SettingsSection {
-        SettingsItem("蓝牙扫描绑定", Icons.AutoMirrored.Outlined.BluetoothSearching, "扫描附近热水器，按信号强度排序", enabled = enabled && !s.scanning, divider = true, onClick = nearby)
-        SettingsItem("扫码绑定", Icons.Outlined.QrCodeScanner, enabled = enabled, divider = true, onClick = scan)
-        SettingsItem("手动输入设备编号", Icons.Outlined.Edit, enabled = enabled, onClick = manual)
+        SettingsItem("登陆第二个账户", Icons.Outlined.PersonAdd,
+            s.accounts.getOrNull(1)?.let { "已绑定 ${showerAccountLabel(it)}" } ?: "绑定另一个手机号后可选择开水账户",
+            enabled = enabled, divider = true, iconTint = ServiceKind.Shower.ink, onClick = secondLogin)
+        SettingsItem("蓝牙扫描绑定", Icons.AutoMirrored.Outlined.BluetoothSearching, "扫描附近热水器，按信号强度排序", enabled = enabled && !s.scanning, divider = true, iconTint = ServiceKind.Shower.ink, onClick = nearby)
+        SettingsItem("扫码绑定", Icons.Outlined.QrCodeScanner, enabled = enabled, divider = true, iconTint = ServiceKind.Shower.ink, onClick = scan)
+        SettingsItem("手动输入设备编号", Icons.Outlined.Edit, enabled = enabled, iconTint = ServiceKind.Shower.ink, onClick = manual)
     }
     if (s.scanning) Row(verticalAlignment = Alignment.CenterVertically) {
         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp); Spacer(Modifier.width(10.dp))
@@ -171,8 +199,39 @@ private fun ShowerDeviceManager(s: ShowerUiState, model: ShowerViewModel, nearby
     if (s.scanCompleted && s.nearby.isEmpty()) Text("附近未发现热水器，请靠近设备后重试，或使用扫码绑定", color = InkGray, fontSize = 12.sp)
     if (s.nearby.isNotEmpty()) SettingsSection("附近设备") {
         s.nearby.forEach { device -> SettingsItem(device.name, Icons.Outlined.Bluetooth,
-            "${device.mac} · 信号 ${device.rssi} dBm", enabled = enabled) { model.bind(device.mac) } }
+            "${device.mac} · 信号 ${device.rssi} dBm", enabled = enabled, iconTint = ServiceKind.Shower.ink) { model.bind(device.mac) } }
     }
+    if (!enabled) Text("用水中或状态待确认时，不能更换设备或账户", color = InkGray, fontSize = 12.sp)
+
+}
+
+private fun showerAccountLabel(phone: String): String =
+    if (phone.length == 11) phone.take(3) + "****" + phone.takeLast(4) else phone
+
+@Composable
+private fun ShowerAccountSelector(s: ShowerUiState, select: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val enabled = !s.busy && !s.active && !s.unknown
+    val index = s.accounts.indexOf(s.selectedAccountPhone).coerceAtLeast(0) + 1
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = { expanded = true }, enabled = enabled,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(16.dp)) {
+            Text("开水账户 $index · ${showerAccountLabel(s.selectedAccountPhone)}", Modifier.weight(1f), fontSize = 14.sp)
+            Icon(Icons.Outlined.ArrowDropDown, "选择开水账户")
+        }
+        DropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
+            s.accounts.forEachIndexed { i, phone ->
+                DropdownMenuItem(text = { Text("账户 ${i + 1} · ${showerAccountLabel(phone)}") },
+                    onClick = { expanded = false; select(phone) },
+                    trailingIcon = { if (phone == s.selectedAccountPhone) Icon(Icons.Outlined.Check, null) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShowerDeviceSelector(s: ShowerUiState, model: ShowerViewModel) {
+    val enabled = !s.busy && !s.active && !s.unknown
     if (s.devices.isNotEmpty()) SettingsSection("更换设备") {
         s.devices.forEach { device ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -186,12 +245,11 @@ private fun ShowerDeviceManager(s: ShowerUiState, model: ShowerViewModel, nearby
             }
         }
     }
-    if (!enabled) Text("用水中或状态待确认时，不能更换设备", color = InkGray, fontSize = 12.sp)
 }
 
 @Composable
 internal fun ShowerLogin(s: ShowerUiState, model: ShowerViewModel, showHeading: Boolean = true,
-    submitLabel: String = "登录并开始使用") {
+    submitLabel: String = "登录洗澡账户") {
             LifeCard {
                 if (showHeading) {
                     Text("登录洗澡账户", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = InkDark)
@@ -199,27 +257,36 @@ internal fun ShowerLogin(s: ShowerUiState, model: ShowerViewModel, showHeading: 
                     Text("首次登录后，下次直接开水", color = InkGray, fontSize = 12.sp)
                     Spacer(Modifier.height(22.dp))
                 }
-                OutlinedTextField(s.phone, model::phone, label = { Text("手机号") }, singleLine = true,
-                    enabled = !s.busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                ShowerLoginFields(s.phone, s.secret, s.smsMode, s.smsSeconds, s.busy,
+                    model::phone, model::secret, model::mode, model::sendSms, model::login, submitLabel)
+            }
+}
+
+@Composable
+private fun ShowerLoginFields(phone: String, secret: String, smsMode: Boolean, smsSeconds: Int, busy: Boolean,
+    onPhone: (String) -> Unit, onSecret: (String) -> Unit, onMode: () -> Unit, onSms: () -> Unit,
+    onLogin: () -> Unit, submitLabel: String) {
+                OutlinedTextField(phone, onPhone, label = { Text("手机号") }, singleLine = true,
+                    enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(s.secret, model::secret, label = { Text(if (s.smsMode) "短信验证码" else "密码") },
-                        singleLine = true, enabled = !s.busy, modifier = Modifier.weight(1f),
-                        visualTransformation = if (s.smsMode) VisualTransformation.None else PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = if (s.smsMode) KeyboardType.Number else KeyboardType.Password))
-                    if (s.smsMode) TextButton(onClick = model::sendSms, enabled = !s.busy && s.validPhone && s.smsSeconds == 0,
+                    OutlinedTextField(secret, onSecret, label = { Text(if (smsMode) "短信验证码" else "密码") },
+                        singleLine = true, enabled = !busy, modifier = Modifier.weight(1f),
+                        visualTransformation = if (smsMode) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = if (smsMode) KeyboardType.Number else KeyboardType.Password))
+                    if (smsMode) TextButton(onClick = onSms, enabled = !busy && phone.matches(Regex("1\\d{10}")) && smsSeconds == 0,
                         modifier = Modifier.width(112.dp)) {
-                        Text(if (s.smsSeconds > 0) "${s.smsSeconds}s 后重发" else "发送验证码", fontSize = 12.sp)
+                        Text(if (smsSeconds > 0) "${smsSeconds}s 后重发" else "发送验证码", fontSize = 12.sp)
                     }
                 }
-                TextButton(onClick = model::mode, enabled = !s.busy) { Text(if (s.smsMode) "使用密码登录" else "使用验证码登录", fontSize = 12.sp) }
+                TextButton(onClick = onMode, enabled = !busy) { Text(if (smsMode) "使用密码登录" else "使用验证码登录", fontSize = 12.sp) }
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = model::login, enabled = !s.busy && s.validPhone && s.secret.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
-                    if (s.busy) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                Button(onClick = onLogin, enabled = !busy && phone.matches(Regex("1\\d{10}")) && secret.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ServiceKind.Shower.action, contentColor = Color.White)) {
+                    if (busy) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     else Text(submitLabel, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.height(12.dp))
                 Text("登录信息加密保存在本机", color = InkGray, fontSize = 12.sp)
-            }
-}
+ }

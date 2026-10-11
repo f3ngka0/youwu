@@ -1,0 +1,5 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+ android:minWidth="110dp" android:minHeight="110dp" android:targetCellWidth="2" android:targetCellHeight="2"
+ android:resizeMode="none" android:widgetCategory="home_screen" android:updatePeriodMillis="0"
+ android:initialLayout="@layout/widget_service_control" android:previewLayout="@layout/widget_service_control"
+ android:description="@string/water_control_widget_description" />

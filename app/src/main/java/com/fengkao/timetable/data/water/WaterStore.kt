@@ -14,6 +14,11 @@ class WaterStore(context: Context) {
         if (phone != phone()) editor.remove("devices").remove("selected")
         check(editor.commit()) { "登录信息保存失败，请重试" }
     }
+    fun markControlAttempt() {
+        check(prefs.edit().putLong("last_control_attempt", System.currentTimeMillis()).commit()) { "启动状态保存失败" }
+    }
+    fun controlCooldownRemaining(): Long =
+        (10_000 - (System.currentTimeMillis() - prefs.getLong("last_control_attempt", 0L))).coerceIn(0, 10_000)
     fun phone(): String = prefs.getString("phone", "").orEmpty()
     fun expire() { prefs.edit().remove("token").apply() }
     fun selectedId(): String = prefs.getString("selected", "").orEmpty()

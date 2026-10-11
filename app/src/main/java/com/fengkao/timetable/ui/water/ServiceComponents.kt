@@ -2,7 +2,6 @@ package com.fengkao.timetable.ui.water
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -22,36 +21,63 @@ import com.fengkao.timetable.ui.theme.*
 
 @Composable
 internal fun ServiceDeviceCard(name: String?, icon: ImageVector, status: String, busy: Boolean,
-    action: String, enabled: Boolean, tip: String, onAction: () -> Unit) {
+    action: String, enabled: Boolean, tip: String, onAction: () -> Unit,
+    kind: ServiceKind = ServiceKind.Drinking, beforeAction: @Composable ColumnScope.() -> Unit = {}) {
     LifeCard {
-        Text("默认设备", color = InkGray, fontSize = 12.sp)
-        Box(Modifier.padding(vertical = 20.dp).size(76.dp).clip(CircleShape).background(BrandGreenSoft), contentAlignment = Alignment.Center) {
-            Icon(icon, null, Modifier.size(38.dp), tint = BrandGreen)
+        ServiceDeviceSummary(name, icon, kind)
+        if (status.isNotBlank()) {
+            Spacer(Modifier.height(20.dp))
+            Text(status, color = InkMid, fontSize = 14.sp)
         }
-        Text(name ?: "还未绑定设备", fontSize = 23.sp, fontWeight = FontWeight.Bold, color = InkDark)
-        Spacer(Modifier.height(10.dp))
-        Text(status, color = InkGray, fontSize = 13.sp)
+        beforeAction()
         Spacer(Modifier.height(22.dp))
-        Button(onClick = onAction, enabled = enabled, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
-            if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = InkGray)
-            else Icon(Icons.Outlined.PowerSettingsNew, null, Modifier.size(22.dp))
-            Spacer(Modifier.width(8.dp)); Text(action, fontWeight = FontWeight.SemiBold)
-        }
+        ServiceActionButton(action, Icons.Outlined.PowerSettingsNew, enabled, onAction, kind, busy)
         Spacer(Modifier.height(12.dp))
-        Text(tip, color = InkGray, fontSize = 12.sp)
+        Text(tip, color = InkMid, fontSize = 14.sp)
     }
 }
 
 @Composable
-internal fun DeviceManagementEntry(onClick: () -> Unit) {
-    SettingsSection { SettingsItem("设备管理", Icons.Outlined.Settings, "绑定、更换与设备信息", onClick = onClick) }
+internal fun ServiceDeviceSummary(name: String?, icon: ImageVector, kind: ServiceKind = ServiceKind.Drinking) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(kind.soft),
+                contentAlignment = Alignment.Center) {
+                Icon(icon, null, Modifier.size(32.dp), tint = kind.ink)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(if (kind == ServiceKind.Drinking) "校园饮水机" else "浴室热水器", color = InkMid, fontSize = 14.sp)
+                Spacer(Modifier.height(6.dp))
+                Text(name ?: if (kind == ServiceKind.Drinking) "还未绑定饮水机" else "还未绑定热水器",
+                    fontSize = 21.sp, fontWeight = FontWeight.Bold, color = InkDark)
+            }
+        }
 }
 
 @Composable
-internal fun DeviceManagementHeader(onBack: () -> Unit) {
+internal fun ServiceActionButton(label: String, icon: ImageVector, enabled: Boolean, onClick: () -> Unit,
+    kind: ServiceKind = ServiceKind.Drinking, busy: Boolean = false) {
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().height(54.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = kind.action, contentColor = androidx.compose.ui.graphics.Color.White)) {
+        if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = LocalContentColor.current)
+        else Icon(icon, null, Modifier.size(22.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+internal fun DeviceManagementEntry(kind: ServiceKind = ServiceKind.Drinking, title: String = "设备管理",
+    subtitle: String = "绑定、更换与设备信息", onClick: () -> Unit) {
+    SettingsSection { SettingsItem(title, Icons.Outlined.Settings, subtitle, iconTint = kind.ink, onClick = onClick) }
+}
+
+@Composable
+internal fun DeviceManagementHeader(title: String = "设备管理", onBack: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回", tint = InkDark) }
-        Text("设备管理", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = InkDark)
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = InkDark)
     }
 }
 
@@ -59,8 +85,8 @@ internal fun DeviceManagementHeader(onBack: () -> Unit) {
 internal fun ServiceMessage(message: String?, error: Boolean, retry: Boolean = false, busy: Boolean = false, onRetry: () -> Unit = {}) {
     if (message != null) {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(if (error) MaterialTheme.colorScheme.errorContainer else BrandGreenSoft).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(message, color = if (error) MaterialTheme.colorScheme.error else BrandGreen, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            .background(if (error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(message, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 14.sp, modifier = Modifier.weight(1f))
             if (retry) TextButton(onClick = onRetry, enabled = !busy) { Text("重试", fontSize = 12.sp) }
         }
     }

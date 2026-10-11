@@ -35,6 +35,17 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".widget.ServiceWidgetActivity" android:exported="false" android:label="组件设备绑定" />
+        <activity android:name=".widget.ServiceWidgetPreviewActivity" android:exported="false" android:label="生活服务组件" />
+        <receiver android:name=".widget.WaterControlWidgetProvider" android:exported="false" android:label="@string/water_control_widget_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/water_control_widget" />
+        </receiver>
+        <receiver android:name=".widget.ShowerControlWidgetProvider" android:exported="false" android:label="@string/shower_control_widget_label">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/shower_control_widget" />
+        </receiver>
+
         <!-- Widget 真机预览 + 一键添加（仅本地数据渲染，无敏感操作） -->
         <activity
             android:name=".widget.WidgetPreviewActivity"

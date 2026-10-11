@@ -9,4 +9,12 @@ class ShowerAccountPolicyTest {
     @Test fun persistedPendingControlKeepsCredentialsAfterRestart() { assertFalse(canLogoutShower(false, false, false, true)) }
     @Test fun idleAccountCanLogout() { assertTrue(canLogoutShower(false, false, false, false)) }
     @Test fun OtherUsersOrderDoesNotPreventLogout() { assertTrue(canLogoutShower(true, false, false, false)) }
+    @Test fun accountSwitchRequiresIdleAndConfirmedControl() {
+        assertTrue(canChangeShowerAccount(false, false, false, false, false))
+        assertFalse(canChangeShowerAccount(true, false, false, false, false))
+        assertFalse(canChangeShowerAccount(false, true, false, false, false))
+        assertFalse(canChangeShowerAccount(false, false, true, false, false))
+        assertFalse(canChangeShowerAccount(false, false, false, true, false))
+        assertFalse(canChangeShowerAccount(false, false, false, false, true))
+    }
 }

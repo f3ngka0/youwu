@@ -16,6 +16,17 @@ class ShowerStore(context: Context) {
     fun phone() = prefs.getString("phone", "").orEmpty()
     fun secondaryPhone() = prefs.getString("secondary_phone", "").orEmpty()
     fun accounts() = listOfNotNull(auth(), secondaryAuth()).distinctBy { it.phone }
+    fun accountNotes(): Map<String, String> = runCatching {
+        val json = JSONObject(prefs.getString("account_notes", "{}").orEmpty())
+        json.keys().asSequence().associateWith { json.optString(it) }
+    }.getOrDefault(emptyMap())
+    fun saveAccountNote(phone: String, note: String) {
+        require(accounts().any { it.phone == phone }) { "账户尚未登录" }
+        val notes = JSONObject(prefs.getString("account_notes", "{}").orEmpty())
+        val normalized = normalizeShowerAccountNote(note)
+        if (normalized.isBlank()) notes.remove(phone) else notes.put(phone, normalized)
+        check(prefs.edit().putString("account_notes", notes.toString()).commit()) { "备注保存失败" }
+    }
     fun controllingPhone(): String = prefs.getString("control_phone", null)
         ?: bleSession()?.accountPhone?.takeIf { it.isNotBlank() } ?: phone()
     fun activePhone(): String = if (pending() || bleSession() != null) controllingPhone()
@@ -37,7 +48,7 @@ class ShowerStore(context: Context) {
         val editor = prefs.edit().putString("auth", Crypto.encrypt(auth.json().toString()))
             .putString("phone", auth.phone).putString("active_phone", auth.phone)
         if (phone() != auth.phone) editor.remove("devices").remove("selected").remove("pending")
-            .remove("ble_session").remove("control_phone").remove("secondary_auth").remove("secondary_phone")
+            .remove("ble_session").remove("control_phone").remove("secondary_auth").remove("secondary_phone").remove("account_notes")
         check(editor.commit()) { "登录信息保存失败" }
     }
     fun loginSecondary(auth: ShowerAuth) {
@@ -45,6 +56,10 @@ class ShowerStore(context: Context) {
         check(!(pending() || bleSession() != null) || controllingPhone() == auth.phone) { "请先确认当前用水状态" }
         val editor = prefs.edit().putString("secondary_auth", Crypto.encrypt(auth.json().toString()))
             .putString("secondary_phone", auth.phone)
+        if (secondaryPhone() != auth.phone) {
+            val notes = JSONObject(prefs.getString("account_notes", "{}").orEmpty()).apply { remove(secondaryPhone()) }
+            editor.putString("account_notes", notes.toString())
+        }
         if (activePhone() == secondaryPhone() && secondaryPhone() != auth.phone) {
             editor.putString("active_phone", phone())
         }
@@ -56,7 +71,7 @@ class ShowerStore(context: Context) {
     }
     fun expire() {
         check(prefs.edit().remove("auth").remove("secondary_auth").remove("secondary_phone")
-            .remove("active_phone").commit()) { "退出账户失败" }
+            .remove("active_phone").remove("account_notes").commit()) { "退出账户失败" }
     }
     fun devices(): List<ShowerDevice> = runCatching {
         val array = JSONArray(prefs.getString("devices", "[]"))

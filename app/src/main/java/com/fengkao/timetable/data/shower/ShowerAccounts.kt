@@ -7,3 +7,9 @@ internal fun resolveShowerAccount(primary: ShowerAuth?, secondary: ShowerAuth?, 
     val phone = controllingPhone ?: selectedPhone
     return if (phone.isBlank()) accounts.firstOrNull() else accounts.firstOrNull { it.phone == phone }
 }
+
+fun normalizeShowerAccountNote(note: String): String = note.filterNot(Char::isISOControl).trim().take(24)
+fun maskedShowerPhone(phone: String): String =
+    if (phone.length == 11) phone.take(3) + "****" + phone.takeLast(4) else phone
+fun showerAccountDisplayName(phone: String, note: String?): String =
+    normalizeShowerAccountNote(note.orEmpty()).ifBlank { maskedShowerPhone(phone) }

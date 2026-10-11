@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/service_widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:padding="12dp" android:background="@drawable/widget_shower_background">
+    <LinearLayout android:id="@+id/service_widget_header" android:layout_width="match_parent" android:layout_height="28dp"
+        android:layout_alignParentTop="true" android:gravity="center_vertical">
+        <ImageView android:id="@+id/service_widget_icon" android:layout_width="24dp" android:layout_height="24dp"
+            android:src="@drawable/ic_widget_shower" android:importantForAccessibility="no" />
+        <TextView android:id="@+id/service_widget_title" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:layout_marginStart="8dp" android:text="洗澡" android:textSize="18sp" android:textStyle="bold" android:textColor="#9B4D2F" />
+        <ImageView android:id="@+id/service_widget_settings" android:layout_width="28dp" android:layout_height="28dp"
+            android:padding="4dp" android:src="@drawable/ic_widget_settings" android:contentDescription="重新绑定组件设备和账户" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+        android:layout_below="@id/service_widget_header" android:layout_above="@+id/service_widget_action" android:gravity="top" android:paddingTop="12dp"
+        android:layout_marginTop="4dp" android:layout_marginBottom="4dp">
+        <TextView android:id="@+id/service_widget_target" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="尚未绑定设备" android:textColor="#202124" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" />
+        <TextView android:id="@+id/service_widget_account" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="2dp" android:textColor="#59616C" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" android:visibility="gone" />
+        <TextView android:id="@+id/service_widget_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:layout_marginTop="2dp" android:text="点击选择组件使用的设备" android:textColor="#59616C" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+    <TextView android:id="@id/service_widget_action" android:layout_width="match_parent" android:layout_height="44dp"
+        android:layout_alignParentBottom="true" android:gravity="center" android:background="@drawable/widget_shower_action"
+        android:text="绑定设备" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" />
+</RelativeLayout>

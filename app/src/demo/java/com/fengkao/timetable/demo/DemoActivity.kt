@@ -79,7 +79,9 @@ class DemoActivity : ComponentActivity() {
             // Optional screenshot states stay inside the permission-free demo build.
             when (intent.getStringExtra("serviceState")) {
                 "accounts" -> setState(shower, shower.state.value.copy(phone = "13800001234",
-                    accounts = listOf("13800001234", "13900005678"), selectedAccountPhone = "13800001234"))
+                    accounts = listOf("13800001234", "13900005678"), selectedAccountPhone = "13800001234",
+                    accountNotes = mapOf("13800001234" to "宿舍账户", "13900005678" to "备用账户"),
+                    accountBalances = mapOf("13800001234" to ShowerBalance("20.00", "趣智校园钱包余额"), "13900005678" to ShowerBalance("12.38", "趣智校园钱包余额"))))
                 "single" -> {
                     setState(water, water.state.value.copy(devices = water.state.value.devices.take(1)))
                     setState(shower, shower.state.value.copy(devices = shower.state.value.devices.take(1)))

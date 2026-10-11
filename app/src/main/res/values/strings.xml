@@ -5,4 +5,8 @@
     <string name="widget_2x2_description">一眼看到下一节课、倒计时和教室</string>
     <string name="widget_4x2_label">下一节课 · 今日概览</string>
     <string name="widget_4x2_description">下一节课倒计时，附今日课程时间轴</string>
+    <string name="water_control_widget_label">喝水 · 2×2</string>
+    <string name="shower_control_widget_label">洗澡 · 2×2</string>
+    <string name="water_control_widget_description">绑定指定饮水机，在桌面一键启动</string>
+    <string name="shower_control_widget_description">绑定洗澡设备和账户，在桌面蓝牙开关水</string>
 </resources>

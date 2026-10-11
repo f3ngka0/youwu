@@ -71,6 +71,7 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun runAction(action: suspend () -> Unit) {
         if (_state.value.busy) return
+        if (!com.fengkao.timetable.widget.ServiceOperationGate.water.tryLock()) return message("饮水操作正在进行，请稍后再试")
         _state.update { it.copy(busy = true, message = null, error = false) }
         viewModelScope.launch {
             try { action() }
@@ -82,7 +83,11 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
                     _state.update { it.copy(loggedIn = false, captcha = null, graphCode = "", smsCode = "") }
                 }
                 _state.update { it.copy(message = e.message ?: "网络连接失败，请重试", error = true) }
-            } finally { _state.update { it.copy(busy = false) } }
+            } finally {
+                _state.update { it.copy(busy = false) }
+                com.fengkao.timetable.widget.ServiceOperationGate.water.unlock()
+                com.fengkao.timetable.widget.ServiceWidgetUpdater.updateAll(getApplication())
+            }
         }
     }
 
@@ -157,12 +162,18 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun start() {
-        val s = _state.value
-        val device = s.device ?: return
-        if (token.isBlank() || s.startSeconds > 0) return
+        val device = _state.value.device ?: return
+        startFromWidget(store.phone(), device.id)
+    }
+    fun startFromWidget(phone: String, id: String) {
         runAction {
-            // Never retry a control request automatically: a timed-out request may already have started the device.
-            try { withContext(Dispatchers.IO) { api.start(token, device.id) } }
+            val currentToken = store.token()
+            if (currentToken.isBlank() || phone != store.phone()) throw java.io.IOException("饮水账户已退出，请重新登录并绑定")
+            val device = store.devices().firstOrNull { it.id == id } ?: throw java.io.IOException("组件设备已移除，请重新绑定")
+            if (store.controlCooldownRemaining() > 0) throw java.io.IOException("刚发送过启动请求，请先确认设备状态")
+            // Persist before sending: timeouts and repeated widget taps cannot resend immediately.
+            store.markControlAttempt()
+            try { withContext(Dispatchers.IO) { api.start(currentToken, device.id) } }
             catch (e: java.net.SocketTimeoutException) { throw java.io.IOException("启动结果未确认，请先查看设备状态，避免重复启动") }
             _state.update { it.copy(message = "设备已启动，请在饮水机上选择水温并接水") }
             countdown(10, sms = false)

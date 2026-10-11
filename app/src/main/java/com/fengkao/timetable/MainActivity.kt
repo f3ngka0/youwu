@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // 打开 App 即回写桌面 Widget（数据可能因同步/设置变化而过期）
         WidgetUpdater.requestUpdateAll(this)
+        com.fengkao.timetable.widget.ServiceWidgetUpdater.updateAll(this)
     }
 
     /** 桌面 Widget 深链：点击课程 → 打开该课程详情 */

@@ -38,6 +38,8 @@ import androidx.compose.material.icons.automirrored.outlined.BluetoothSearching
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fengkao.timetable.ui.theme.*
 import com.fengkao.timetable.ui.water.*
+import com.fengkao.timetable.data.shower.maskedShowerPhone
+import com.fengkao.timetable.data.shower.showerAccountDisplayName
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
@@ -54,6 +56,7 @@ private fun ShowerContent(model: ShowerViewModel) {
     var managing by rememberSaveable { mutableStateOf(false) }
     var manual by rememberSaveable { mutableStateOf(false) }
     var secondLoginOpen by rememberSaveable { mutableStateOf(false) }
+    var notePhone by rememberSaveable { mutableStateOf<String?>(null) }
     val scanner = rememberLauncherForActivityResult(ScanContract()) { it.contents?.let(model::bind) }
     fun scan() { scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
         .setPrompt("扫描趣智校园热水器二维码").setBeepEnabled(false).setOrientationLocked(false)) }
@@ -111,7 +114,8 @@ private fun ShowerContent(model: ShowerViewModel) {
         holder.SaveableStateProvider(page) {
             LifePage {
                 if (page == "devices") {
-                    DeviceManagementHeader { managing = false }
+                    DeviceManagementHeader("账户与设备管理") { managing = false }
+                    ShowerAccountsManager(s, model) { notePhone = it }
                     ShowerDeviceManager(s, model, ::requestNearby, ::requestScan, { model.beginSecondLogin(); secondLoginOpen = true }) { manual = true }
                 } else {
                     LifeHeader("洗澡", "浴室热水", Icons.Outlined.Shower, ServiceKind.Shower)
@@ -127,9 +131,8 @@ private fun ShowerContent(model: ShowerViewModel) {
                                     ShowerAccountSelector(s, model::selectAccount)
                                 }
                             })
-                        ShowerBalanceCard(s, model::refresh)
                         if (s.devices.size > 1) ShowerDeviceSelector(s, model)
-                        DeviceManagementEntry(ServiceKind.Shower) { managing = true }
+                        DeviceManagementEntry(ServiceKind.Shower, "账户与设备管理", "账户余额、备注与设备绑定") { managing = true }
                     }
                 }
                 ServiceMessage(s.message, s.error, s.loggedIn && (s.refreshFailed || s.unknown || s.error), s.busy, model::refresh)
@@ -137,9 +140,18 @@ private fun ShowerContent(model: ShowerViewModel) {
             }
         }
     }
+    LaunchedEffect(managing, s.accounts) { if (managing) model.refreshAccountBalances() }
     LaunchedEffect(managing, s.device != null) { if (!managing && s.device != null) model.stopScan() }
     LaunchedEffect(s.secondLogin.complete) {
         if (s.secondLogin.complete) secondLoginOpen = false
+    }
+    notePhone?.let { phone ->
+        var note by rememberSaveable(phone) { mutableStateOf(s.accountNotes[phone].orEmpty()) }
+        AlertDialog(onDismissRequest = { notePhone = null }, title = { Text("账户备注") },
+            text = { OutlinedTextField(note, { note = it.take(24) }, singleLine = true,
+                label = { Text(maskedShowerPhone(phone)) }, supportingText = { Text("最多 24 字；留空恢复手机号显示") }) },
+            confirmButton = { TextButton(onClick = { model.saveAccountNote(phone, note); notePhone = null }) { Text("保存") } },
+            dismissButton = { TextButton(onClick = { notePhone = null }) { Text("取消") } }, containerColor = CardWhite)
     }
     if (secondLoginOpen && s.loggedIn) {
         AlertDialog(onDismissRequest = { if (!s.busy) secondLoginOpen = false },
@@ -166,17 +178,32 @@ private fun ShowerContent(model: ShowerViewModel) {
 }
 
 @Composable
-private fun ShowerBalanceCard(s: ShowerUiState, retry: () -> Unit) {
-    LifeCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.AccountBalanceWallet, null, tint = ServiceKind.Shower.ink, modifier = Modifier.size(24.dp))
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(s.balance?.source ?: "账户余额", color = InkGray, fontSize = 12.sp)
-                Text(s.balance?.let { "¥ ${it.amount}" } ?: if (s.busy) "读取中…" else "暂未获取", color = InkDark, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            }
-            if (s.balanceError != null) TextButton(onClick = retry, enabled = !s.busy) { Text("重试", fontSize = 12.sp) }
+private fun ShowerAccountsManager(s: ShowerUiState, model: ShowerViewModel, editNote: (String) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("洗澡账户", color = InkGray, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        TextButton(onClick = model::refreshAccountBalances, enabled = !s.refreshingAccounts) {
+            Text(if (s.refreshingAccounts) "读取中…" else "刷新余额")
         }
-        s.balanceError?.let { Text("余额未更新：$it", color = InkGray, fontSize = 11.sp) }
+    }
+    s.accounts.forEachIndexed { index, phone ->
+        LifeCard {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.PersonOutline, null, tint = ServiceKind.Shower.ink, modifier = Modifier.size(24.dp))
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(showerAccountDisplayName(phone, s.accountNotes[phone]), color = InkDark,
+                        fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (s.accountNotes[phone].isNullOrBlank()) "账户 ${index + 1}" else "账户 ${index + 1} · ${maskedShowerPhone(phone)}", color = InkGray, fontSize = 13.sp)
+                }
+                TextButton(onClick = { editNote(phone) }) { Text("备注") }
+            }
+            Spacer(Modifier.height(14.dp))
+            val balance = s.accountBalances[phone]
+            val error = s.accountBalanceErrors[phone]
+            Text(balance?.source ?: "账户余额", color = InkGray, fontSize = 13.sp)
+            Text(balance?.let { "¥ ${it.amount}" } ?: if (s.refreshingAccounts) "读取中…" else "暂未获取",
+                color = InkDark, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            if (error != null) Text("余额未更新：$error", color = InkGray, fontSize = 13.sp)
+        }
     }
 }
 
@@ -205,23 +232,24 @@ private fun ShowerDeviceManager(s: ShowerUiState, model: ShowerViewModel, nearby
 
 }
 
-private fun showerAccountLabel(phone: String): String =
-    if (phone.length == 11) phone.take(3) + "****" + phone.takeLast(4) else phone
+private fun showerAccountLabel(phone: String): String = maskedShowerPhone(phone)
 
 @Composable
 private fun ShowerAccountSelector(s: ShowerUiState, select: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val enabled = !s.busy && !s.active && !s.unknown
-    val index = s.accounts.indexOf(s.selectedAccountPhone).coerceAtLeast(0) + 1
     Box(Modifier.fillMaxWidth()) {
         OutlinedButton(onClick = { expanded = true }, enabled = enabled,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(16.dp)) {
-            Text("开水账户 $index · ${showerAccountLabel(s.selectedAccountPhone)}", Modifier.weight(1f), fontSize = 14.sp)
+            Text("开水账户 · ${showerAccountDisplayName(s.selectedAccountPhone, s.accountNotes[s.selectedAccountPhone])}", Modifier.weight(1f), fontSize = 14.sp)
             Icon(Icons.Outlined.ArrowDropDown, "选择开水账户")
         }
         DropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
             s.accounts.forEachIndexed { i, phone ->
-                DropdownMenuItem(text = { Text("账户 ${i + 1} · ${showerAccountLabel(phone)}") },
+                DropdownMenuItem(text = { Column {
+                    Text(showerAccountDisplayName(phone, s.accountNotes[phone]))
+                    Text("账户 ${i + 1} · ${maskedShowerPhone(phone)}", fontSize = 12.sp, color = InkGray)
+                } },
                     onClick = { expanded = false; select(phone) },
                     trailingIcon = { if (phone == s.selectedAccountPhone) Icon(Icons.Outlined.Check, null) })
             }

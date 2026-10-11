@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" tools:node="remove" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" tools:node="remove" />
     <application>
+        <activity android:name=".widget.ServiceWidgetPreviewActivity" android:exported="true" tools:replace="android:exported" />
         <activity android:name=".demo.DemoActivity" android:exported="true" android:label="有梧 · 演示" android:theme="@style/Theme.Timetable" />
     </application>
 </manifest>

@@ -61,6 +61,10 @@ class WidgetPreviewActivity : ComponentActivity() {
         }
         pinRow.addView(pinButton("添加 2×2 到桌面", Widget2x2Provider::class.java))
         pinRow.addView(pinButton("添加 4×2 到桌面", Widget4x2Provider::class.java))
+        column.addView(Button(this).apply {
+            text = "喝水与洗澡 · 桌面组件"
+            setOnClickListener { startActivity(Intent(this@WidgetPreviewActivity, ServiceWidgetPreviewActivity::class.java)) }
+        }.apply { if (intent.getBooleanExtra("screenshot", false)) visibility = View.GONE })
         column.addView(pinRow)
         if (intent.getBooleanExtra("screenshot", false)) pinRow.visibility = View.GONE
 

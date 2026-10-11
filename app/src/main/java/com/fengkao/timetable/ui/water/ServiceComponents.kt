@@ -68,15 +68,16 @@ internal fun ServiceActionButton(label: String, icon: ImageVector, enabled: Bool
 }
 
 @Composable
-internal fun DeviceManagementEntry(kind: ServiceKind = ServiceKind.Drinking, onClick: () -> Unit) {
-    SettingsSection { SettingsItem("设备管理", Icons.Outlined.Settings, "绑定、更换与设备信息", iconTint = kind.ink, onClick = onClick) }
+internal fun DeviceManagementEntry(kind: ServiceKind = ServiceKind.Drinking, title: String = "设备管理",
+    subtitle: String = "绑定、更换与设备信息", onClick: () -> Unit) {
+    SettingsSection { SettingsItem(title, Icons.Outlined.Settings, subtitle, iconTint = kind.ink, onClick = onClick) }
 }
 
 @Composable
-internal fun DeviceManagementHeader(onBack: () -> Unit) {
+internal fun DeviceManagementHeader(title: String = "设备管理", onBack: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回", tint = InkDark) }
-        Text("设备管理", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = InkDark)
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = InkDark)
     }
 }
 

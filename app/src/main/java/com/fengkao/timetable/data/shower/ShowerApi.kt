@@ -124,6 +124,9 @@ class ShowerApi(private val baseUrl: String = "https://v3-api.china-qzxy.cn",
             data.optString("orderNo").takeUnless { it == "null" }.orEmpty().ifBlank { data.optString("liquidOrderNo").takeUnless { it == "null" }.orEmpty() })
     }
     fun bleUpload(auth: ShowerAuth, state: DeviceQueryState, payload: ByteArray): ShowerBleUpload {
+        // SDK consumption bodies are at least 42 bytes; device errors are not billing data.
+        if (payload.size < 42 || payload[0].toInt() and 0xFF != 0x80)
+            throw IOException("设备返回的消费数据无效，请靠近设备后重试")
         val xfData = com.fengkao.timetable.data.shower.ble.BleFrame.toHex(payload).lowercase()
         val signature = BleSignBuilder.signUpload(auth.loginCode, auth.phone, xfData) ?: throw IOException("结算签名失败")
         val data = call("/order/upload/bluetooth/data", mapOf(

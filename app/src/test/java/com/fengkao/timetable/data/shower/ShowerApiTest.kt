@@ -39,13 +39,25 @@ class ShowerApiTest {
     @Test fun bluetoothUploadUsesMatchingLowercasePayloadAndSignature() {
         reply("""{"success":false,"errorCode":206,"data":{"clData":"abc"}}""")
         val state = com.fengkao.timetable.data.shower.ble.DeviceQueryState("20", "A1B2C3D4", 3, 0x20, 0x01)
-        assertEquals("abc", api.bleUpload(auth, state, byteArrayOf(0xAB.toByte(), 0xCD.toByte())).clData)
+        val payload = ByteArray(42).apply { this[0] = 0x80.toByte(); this[1] = 0xAB.toByte(); this[2] = 0xCD.toByte() }
+        val expectedHex = "80abcd" + "00".repeat(39)
+        assertEquals("abc", api.bleUpload(auth, state, payload).clData)
         val request = server.takeRequest()
         assertEquals("/order/upload/bluetooth/data", request.path)
         val body = fields(request.body.readUtf8())
-        assertEquals("abcd", body["xfData"])
+        assertEquals(expectedHex, body["xfData"])
         assertEquals("a1b2c3d4", body["randomNumber"])
-        assertEquals(com.fengkao.timetable.data.shower.ble.BleSignBuilder.signUpload(auth.loginCode, auth.phone, "abcd"), body["signature"])
+        assertEquals(com.fengkao.timetable.data.shower.ble.BleSignBuilder.signUpload(auth.loginCode, auth.phone, expectedHex), body["signature"])
+    }
+    @Test fun invalidConsumptionResponsesNeverReachBillingEndpoint() {
+        val state = com.fengkao.timetable.data.shower.ble.DeviceQueryState("", "0000", 3, 0, 1)
+        for (payload in listOf(ByteArray(0), byteArrayOf(0x80.toByte()), ByteArray(41) { 0x80.toByte() }, ByteArray(42))) {
+            try {
+                api.bleUpload(auth, state, payload)
+                fail("Invalid consumption response was accepted")
+            } catch (_: IOException) { }
+        }
+        assertEquals(0, server.requestCount)
     }
     @Test fun campusBalanceHasPriorityAndUsesPhoneAlias() {
         reply("""{"success":true,"data":{"amount":"16.76","signStatus":1}}""")

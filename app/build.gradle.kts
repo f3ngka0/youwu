@@ -24,8 +24,8 @@ android {
         applicationId = "com.fengkao.timetable"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.1"
+        versionCode = 11
+        versionName = "1.1.1"
         buildConfigField("String", "WATER_API_GATEWAY", waterConfig("API_GATEWAY"))
         buildConfigField("String", "WATER_API_CID", waterConfig("API_CID"))
 

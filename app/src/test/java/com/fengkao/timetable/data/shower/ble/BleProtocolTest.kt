@@ -4,12 +4,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BleProtocolTest {
-    @Test fun queryCommandUsesAsciiHexWireFraming() {
-        val wire = BleFrame.cmdToWire(0x23)
-        assertEquals("#600003802300A316\n", String(wire, Charsets.US_ASCII))
-        assertEquals(0x23, BleFrame.cmdOf(BleFrame.parseWire(wire)!!))
-        wire[wire.lastIndex - 2] = '0'.code.toByte()
-        assertNull(BleFrame.parseWire(wire))
+    @Test fun deviceCommandsMatchSdkAsciiHexVectors() {
+        val vectors = mapOf(
+            0x23 to "#60000480230000A316\n",
+            0x22 to "#60000480220000A216\n",
+            0x85 to "#600004808500000516\n"
+        )
+        for ((cmd, expected) in vectors) {
+            val data = if (cmd == 0x23) DeviceQueryParser.requestData() else byteArrayOf(0)
+            val wire = BleFrame.cmdToWire(cmd, data)
+            assertEquals(expected, String(wire, Charsets.US_ASCII))
+            assertEquals(cmd, BleFrame.cmdOf(BleFrame.parseWire(wire)!!))
+            wire[wire.lastIndex - 2] = '0'.code.toByte()
+            assertNull(BleFrame.parseWire(wire))
+        }
     }
 
     @Test fun rateSignatureUsesDeviceRandomInLowercase() {

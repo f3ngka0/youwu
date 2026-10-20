@@ -49,6 +49,11 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
     ))
     val state = _state.asStateFlow()
 
+    private companion object {
+        /** 钱包支付失败、可改走支付宝免密的业务码：-82 需要支付、-88 未签约代扣、-20 未绑定一卡通。 */
+        val PAYMENT_FALLBACK_CODES = setOf(-82, -88, -20)
+    }
+
     /** 仅移除喝水凭据，保留同一账户的默认设备，不影响其他服务。 */
     fun logout() {
         if (_state.value.busy) return
@@ -149,11 +154,13 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
         store.saveDevices(_state.value.devices, id)
         _state.update { it.copy(selectedId = id, message = null) }
     }
-    fun bind(raw: String) {
-        val id = DeviceIdParser.normalize(raw)
-        if (!Regex("[A-Za-z0-9][A-Za-z0-9_-]{5,63}").matches(id) || !id.any(Char::isDigit)) return message("未识别到有效设备编号，请扫描饮水机二维码")
+    fun bind(raw: String, fromScan: Boolean = false) {
+        val parsed = DeviceIdParser.normalize(raw)
+        if (!Regex("[A-Za-z0-9][A-Za-z0-9_-]{5,63}").matches(parsed) || !parsed.any(Char::isDigit)) return message("未识别到有效设备编号，请扫描饮水机二维码")
         if (token.isBlank()) return message("请先登录喝水账户")
         runAction {
+            // 扫码结果多是流水号，先向服务端换取真实设备 ID 再收藏；手动输入已是设备编号，不再多请求一次。
+            val id = if (fromScan) withContext(Dispatchers.IO) { api.resolveQrDevice(token, parsed) } else parsed
             withContext(Dispatchers.IO) { api.bind(token, id) }
             val devices = _state.value.devices.let { if (it.any { device -> device.id == id }) it else it + WaterDevice(id, "饮水设备") }
             store.saveDevices(devices, id)
@@ -171,10 +178,21 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
             if (currentToken.isBlank() || phone != store.phone()) throw java.io.IOException("饮水账户已退出，请重新登录并绑定")
             val device = store.devices().firstOrNull { it.id == id } ?: throw java.io.IOException("组件设备已移除，请重新绑定")
             if (store.controlCooldownRemaining() > 0) throw java.io.IOException("刚发送过启动请求，请先确认设备状态")
+            // 状态预检只用于给出更准确的提示；读取失败不阻止启动请求。
+            val status = withContext(Dispatchers.IO) { runCatching { api.status(currentToken, device.id) }.getOrNull() }
+            if (status?.offline == true) throw java.io.IOException("设备当前不在线，请稍后再试")
+            if (status?.disabled == true) throw java.io.IOException("设备已被禁用，请联系管理员")
             // Persist before sending: timeouts and repeated widget taps cannot resend immediately.
             store.markControlAttempt()
-            try { withContext(Dispatchers.IO) { api.start(currentToken, device.id) } }
+            try { withContext(Dispatchers.IO) { api.start(currentToken, device.id, ptype = 91) } }
             catch (e: java.net.SocketTimeoutException) { throw java.io.IOException("启动结果未确认，请先查看设备状态，避免重复启动") }
+            catch (e: WaterApiException) {
+                // 仅支付方式相关失败才回退支付宝免密（21）；设备准备中/欠费等重试无意义，可能重复扣费。
+                if (e.code !in PAYMENT_FALLBACK_CODES) throw e
+                try { withContext(Dispatchers.IO) { api.start(currentToken, device.id, ptype = 21) } }
+                catch (_: WaterApiException) { throw e }
+                catch (retry: java.net.SocketTimeoutException) { throw java.io.IOException("启动结果未确认，请先查看设备状态，避免重复启动") }
+            }
             _state.update { it.copy(message = "设备已启动，请在饮水机上选择水温并接水") }
             countdown(10, sms = false)
         }

@@ -56,7 +56,7 @@ private fun WaterScreenContent(model: WaterViewModel) {
     val s by model.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var manual by rememberSaveable { mutableStateOf(false) }
-    val scanner = rememberLauncherForActivityResult(ScanContract()) { it.contents?.let(model::bind) }
+    val scanner = rememberLauncherForActivityResult(ScanContract()) { it.contents?.let { code -> model.bind(code, fromScan = true) } }
     fun scan() { scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE)
         .setPrompt("扫描饮水设备二维码").setBeepEnabled(false).setOrientationLocked(false)) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {

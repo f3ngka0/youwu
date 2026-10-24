@@ -60,6 +60,10 @@ data class AppSettings(
     val customCourses: List<com.fengkao.timetable.data.model.CustomCourse> = emptyList(),
     /** 统计页「空闲时间块分析」：用户手动添加的每周重复事务占用 */
     val busyBlocks: List<BusyBlock> = emptyList(),
+    /** 用户点了「不再提示这个版本」的版本号，同一个版本不再弹更新 */
+    val skippedUpdateVersion: String = "",
+    /** 上次检查更新的时间（毫秒），用于自动检查的频控 */
+    val lastUpdateCheckAt: Long = 0L,
 ) {
     fun hasTermStartFor(term: TermSpec): Boolean {
         if (termStartEpochDay <= 0) return false
@@ -115,6 +119,8 @@ class SettingsStore(private val context: Context) {
         val tuitionFee = intPreferencesKey("tuition_fee")
         val customCourses = stringPreferencesKey("custom_courses_json")
         val busyBlocks = stringPreferencesKey("busy_blocks_json")
+        val skippedUpdateVersion = stringPreferencesKey("skipped_update_version")
+        val lastUpdateCheckAt = longPreferencesKey("last_update_check_at")
     }
 
     val flow: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -170,6 +176,8 @@ class SettingsStore(private val context: Context) {
                     }.getOrNull()
                 }
                 ?: emptyList(),
+            skippedUpdateVersion = p[Keys.skippedUpdateVersion].orEmpty(),
+            lastUpdateCheckAt = p[Keys.lastUpdateCheckAt] ?: 0L,
         )
     }
 
@@ -303,6 +311,16 @@ class SettingsStore(private val context: Context) {
         val next = if (short.isBlank()) cur - fullName else cur + (fullName to short)
         if (next.isEmpty()) p.remove(Keys.nameOverrides)
         else p[Keys.nameOverrides] = json.encodeToString(strMapSerializer, next)
+    }
+
+    /** 记住「这个版本不再提示」，下次同版本不再弹窗 */
+    suspend fun skipUpdateVersion(version: String) = context.dataStore.edit {
+        it[Keys.skippedUpdateVersion] = version
+    }
+
+    /** 记录一次检查更新的时间（自动检查的频控用） */
+    suspend fun setLastUpdateCheckAt(at: Long) = context.dataStore.edit {
+        it[Keys.lastUpdateCheckAt] = at
     }
 
     suspend fun logout() = context.dataStore.edit {

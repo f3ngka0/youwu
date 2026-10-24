@@ -343,7 +343,11 @@ private fun ModeCard(
 }
 
 /**
- * 液态玻璃卡面：三段式高光描边（glassRim），让玻璃的立体边缘看得出来。
+ * 液态玻璃卡面。
+ *
+ * 浅色：三段式高光描边（glassRim），让玻璃的立体边缘看得出来。
+ * 深色：**只留一圈淡描边**。深色画布本来就暗，Highlight.Default 的整圈亮白
+ * 加上顶缘光带、左上角径向高光在深色下会被读成霓虹灯箱，卡片一大就非常夸张。
  */
 @Composable
 private fun GlassModeCard(backdrop: Backdrop, content: @Composable () -> Unit) {
@@ -360,13 +364,29 @@ private fun GlassModeCard(backdrop: Backdrop, content: @Composable () -> Unit) {
                 // 这里原本的 0.16 灰投影落在浅灰画布上，会在下方两个圆角外
                 // 晕出一圈脏灰，正是「奇怪阴影」的来源。
                 shadowAlpha = 0f,
+                // 深色下把材质自带的受光面关掉，只靠下面那道描边立边。
+                highlightAlpha = if (IsDark) 0f else 0.85f,
+                // 深色下也不走内置的 GlassEdge 描边（深色下它本身是白 18%，
+                // 加在近黑画布上偏亮），改成 drawBehind 里自己画那道白 10%。
+                edgeColor = if (IsDark) Color.Transparent else GlassEdge,
             )
             .clip(NoticeCardShape)
             // 高光必须画在内容之下。之前用 drawWithContent { drawContent(); ... }
             // 让这圈白色径向渐变盖在文字上，左上角「学习通」被洗到 2.24:1
             // （AA 门槛 4.5:1）。玻璃的受光面本来就在材质里、不在字前面。
             .drawBehind {
-                val radius = CornerRadius(20.dp.toPx())
+                if (IsDark) {
+                    // 深色：一道 insets 1dp 的淡描边，不叠亮白内线、不做顶缘光带、
+                    // 不做左上角径向高光——这些在近黑画布上都会过曝。
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = 0.10f),
+                        topLeft = Offset(1.dp.toPx(), 1.dp.toPx()),
+                        size = Size(size.width - 2.dp.toPx(), size.height - 2.dp.toPx()),
+                        cornerRadius = CornerRadius(19.dp.toPx()),
+                        style = Stroke(width = 1.dp.toPx()),
+                    )
+                    return@drawBehind
+                }
                 // 注：clip 会把描边外半裁掉，所以描边整体向内收 1dp、宽度 2dp，
                 // 这样才有一整条完整的边线。白色卡片落在浅灰背景上，必须先压
                 // 一道冷灰外缘，玻璃的边才立得起来，再叠一道亮白内线形成折边。

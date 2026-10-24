@@ -183,6 +183,21 @@ fun MainScaffold(viewModel: MainViewModel) {
             )
         }
     }
+
+    // 检查更新：冷启动在后台静默查一次（12 小时内不重复），命中就弹窗
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(Unit) { viewModel.autoCheckUpdate() }
+    state.updateAvailable?.let { info ->
+        com.fengkao.timetable.ui.update.UpdateDialog(
+            info = info,
+            onDownload = {
+                com.fengkao.timetable.ui.update.openUpdatePage(context, info)
+                viewModel.dismissUpdatePrompt()
+            },
+            onLater = { viewModel.dismissUpdatePrompt() },
+            onSkipVersion = { viewModel.skipUpdateVersion(info.version) },
+        )
+    }
 }
 
 /**

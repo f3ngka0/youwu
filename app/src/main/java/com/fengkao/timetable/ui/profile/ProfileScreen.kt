@@ -16,6 +16,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +45,7 @@ fun ProfileScreen(
     val shower by showerModel.state.collectAsStateWithLifecycle()
     val xuexitong by xuexitongModel.state.collectAsStateWithLifecycle()
     val infoModel: ProfileInfoViewModel = composeViewModel()
+    val context = LocalContext.current
     val pageStateHolder = rememberSaveableStateHolder()
     var stack by rememberSaveable { mutableStateOf(listOf(ProfilePage.HOME.name)) }
     fun go(next: ProfilePage) { stack = pushProfilePage(stack, next) }
@@ -189,7 +191,12 @@ fun ProfileScreen(
                     }
                     SettingsHint("连接设置与同步与数据使用同一份配置")
                 }
-                ProfilePage.ABOUT -> AboutPage { go(ProfilePage.LICENSES) }
+                ProfilePage.ABOUT -> AboutPage(
+                    openLicenses = { go(ProfilePage.LICENSES) },
+                    state = state,
+                    onCheckUpdate = { viewModel.checkUpdate(manual = true) },
+                    onOpenUpdate = { com.fengkao.timetable.ui.update.openUpdatePage(context, it) },
+                )
                 ProfilePage.LICENSES -> LicensesPage(infoModel)
                 ProfilePage.INSIGHTS -> Unit
             }

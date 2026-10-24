@@ -62,6 +62,14 @@ data class MainUiState(
     val noteCourseRequested: String? = null,
     val welcomeSaving: Boolean = false,
     val welcomeError: String? = null,
+    /** 正在检查更新 */
+    val updateChecking: Boolean = false,
+    /** 查到新版本且用户没选「不再提示」时才非空：驱动首页弹窗 */
+    val updateAvailable: com.fengkao.timetable.data.update.UpdateInfo? = null,
+    /** 手动检查更新的一次性提示（已是最新 / 检查失败），显示在关于页 */
+    val updateHint: String? = null,
+    /** 一次性提示是否为错误色 */
+    val updateHintError: Boolean = false,
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -523,5 +531,68 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val s = container.settings.first()
         _state.update { it.copy(settings = s) }
         refreshWidgets()
+    }
+
+    // ---------------- 检查更新 ----------------
+
+    /**
+     * 检查 GitHub 上是否有更新的 Release。
+     *
+     * @param manual 手动点「检查更新」：结果要回显（已是最新 / 失败）；
+     * 自动检查只在后台默默失败（断网、被墙、GitHub 抽风时弹错误框只会吓人）。
+     */
+    fun checkUpdate(manual: Boolean = false) {
+        if (_state.value.updateChecking) return
+        _state.update { it.copy(updateChecking = true, updateHint = if (manual) null else it.updateHint) }
+        viewModelScope.launch {
+            val current = com.fengkao.timetable.BuildConfig.VERSION_NAME
+            val checker = com.fengkao.timetable.data.update.UpdateChecker(currentVersion = current)
+            val result = checker.check()
+            val settings = container.settings.first()
+            runCatching { container.settings.setLastUpdateCheckAt(System.currentTimeMillis()) }
+            val found = result.getOrNull()
+            _state.update { st ->
+                when {
+                    found == null -> st.copy(
+                        updateChecking = false,
+                        updateHint = if (manual) "检查更新失败，请检查网络后重试" else null,
+                        updateHintError = manual,
+                    )
+                    !found.newer -> st.copy(
+                        updateChecking = false,
+                        updateHint = if (manual) "已是最新版本 ${current}" else null,
+                        updateHintError = false,
+                        updateAvailable = null,
+                    )
+                    // 用户点过「不再提示这个版本」：安静跳过，不打扰
+                    found.version == settings.skippedUpdateVersion -> st.copy(
+                        updateChecking = false,
+                        updateHint = if (manual) "发现新版本 ${found.version}（已设为不再提示）" else null,
+                        updateHintError = false,
+                        updateAvailable = null,
+                    )
+                    else -> st.copy(updateChecking = false, updateHint = null, updateAvailable = found)
+                }
+            }
+        }
+    }
+
+    /** 关掉更新弹窗（「以后再说」），不记住任何东西，下次仍会提示 */
+    fun dismissUpdatePrompt() = _state.update { it.copy(updateAvailable = null) }
+
+    /** 用户选择「这个版本不再提示」 */
+    fun skipUpdateVersion(version: String) {
+        _state.update { it.copy(updateAvailable = null) }
+        viewModelScope.launch { runCatching { container.settings.skipUpdateVersion(version) } }
+    }
+
+    /** 冷启动自动检查：距上次检查超过 12 小时才查，避免每次杀进程回来都打 GitHub */
+    fun autoCheckUpdate() {
+        viewModelScope.launch {
+            val s = container.settings.first()
+            val now = System.currentTimeMillis()
+            if (now - s.lastUpdateCheckAt < 12 * 60 * 60 * 1000L) return@launch
+            checkUpdate(manual = false)
+        }
     }
 }

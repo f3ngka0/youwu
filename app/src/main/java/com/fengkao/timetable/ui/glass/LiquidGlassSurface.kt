@@ -4,6 +4,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -59,6 +60,12 @@ fun Modifier.liquidGlassSurface(
     pressProgress: (() -> Float)? = null,
     // 投影强度覆盖：落在画布中间的玻璃卡不需要外投影（浅灰画布上会读成一团灰晕），传 0f 关掉
     shadowAlpha: Float = elevation.shadowAlpha,
+    // 内置受光面强度覆盖：深色底上 Highlight.Default 会把整圈边缘刷成亮白，
+    // 卡片一大就变成夸张的霓虹描边，需要单独压低。
+    highlightAlpha: Float = elevation.highlightAlpha,
+    // 最外层 1dp 描边色：默认 GlassEdge。深色画布上的大卡片要自己画一道更淡的边，
+    // 传 Transparent 关掉这里的内置描边，避免叠出两圈。
+    edgeColor: Color = GlassEdge,
     onSurface: (DrawScope.() -> Unit)? = null,
 ): Modifier {
     val blurPx = with(LocalDensity.current) { elevation.blurDp.dp.toPx() }
@@ -74,7 +81,7 @@ fun Modifier.liquidGlassSurface(
                 blur(blurPx)
                 lens(lensPx, lensPx, chromaticAberration = chromatic)
             },
-            highlight = { Highlight.Default.copy(alpha = elevation.highlightAlpha) },
+            highlight = { Highlight.Default.copy(alpha = highlightAlpha) },
             shadow = { Shadow(alpha = shadowAlpha) },
             layerBlock = {
                 pressProgress?.let { pp ->
@@ -93,6 +100,6 @@ fun Modifier.liquidGlassSurface(
                 onSurface?.invoke(this)
             },
         )
-        // 极细高光边，克制的白度（浅色 55% / 深色 20%）
-        .border(1.dp, GlassEdge, shape ?: RoundedCornerShape(50))
+        // 极细高光边，克制的白度（浅色 55% / 深色 18%）
+        .border(1.dp, edgeColor, shape ?: RoundedCornerShape(50))
 }

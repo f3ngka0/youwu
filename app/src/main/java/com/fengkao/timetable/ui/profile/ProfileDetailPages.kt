@@ -96,13 +96,29 @@ private fun ServiceAccountDetails(account: String, busy: Boolean, name: String, 
 }
 
 @Composable
-internal fun AboutPage(openLicenses: () -> Unit) {
+internal fun AboutPage(
+    openLicenses: () -> Unit,
+    state: MainUiState,
+    onCheckUpdate: () -> Unit,
+    onOpenUpdate: (com.fengkao.timetable.data.update.UpdateInfo) -> Unit,
+) {
     Column(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Image(painterResource(R.drawable.ic_launcher_foreground), "课程表图标", Modifier.size(72.dp).clip(RoundedCornerShape(18.dp)).background(BrandGreenSoft))
         Text("有梧", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = InkDark)
         Text("版本 ${BuildConfig.VERSION_NAME}", color = InkGray, fontSize = 13.sp)
     }
+    com.fengkao.timetable.ui.update.UpdateRow(
+        checking = state.updateChecking,
+        latest = state.updateAvailable,
+        hint = state.updateHint,
+        hintError = state.updateHintError,
+        onCheck = {
+            // 已经查到新版本时再点一次，是「去看更新内容」而不是重新检查
+            val found = state.updateAvailable
+            if (found != null) onOpenUpdate(found) else onCheckUpdate()
+        },
+    )
     SettingsSection { SettingsItem("开源许可", Icons.Outlined.Description, onClick = openLicenses) }
     SettingsHint("课表数据来自新版正方教务系统。教务凭据仅保存在本机，课表同步直连学校；喝水与洗澡登录分别连接对应校园服务。")
 }

@@ -27,14 +27,22 @@ import com.fengkao.timetable.ui.MainViewModel
 import com.fengkao.timetable.ui.discover.DiscoverScreen
 import com.fengkao.timetable.ui.shower.ShowerViewModel
 import com.fengkao.timetable.ui.water.WaterViewModel
+import com.fengkao.timetable.ui.xuexitong.XuexitongAccountPage
+import com.fengkao.timetable.ui.xuexitong.XuexitongViewModel
 import com.fengkao.timetable.ui.theme.*
 import com.fengkao.timetable.ui.navigation.PageStack
 
 @Composable
-fun ProfileScreen(viewModel: MainViewModel, waterModel: WaterViewModel, showerModel: ShowerViewModel) {
+fun ProfileScreen(
+    viewModel: MainViewModel,
+    waterModel: WaterViewModel,
+    showerModel: ShowerViewModel,
+    xuexitongModel: XuexitongViewModel,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val water by waterModel.state.collectAsStateWithLifecycle()
     val shower by showerModel.state.collectAsStateWithLifecycle()
+    val xuexitong by xuexitongModel.state.collectAsStateWithLifecycle()
     val infoModel: ProfileInfoViewModel = composeViewModel()
     val pageStateHolder = rememberSaveableStateHolder()
     var stack by rememberSaveable { mutableStateOf(listOf(ProfilePage.HOME.name)) }
@@ -77,7 +85,7 @@ fun ProfileScreen(viewModel: MainViewModel, waterModel: WaterViewModel, showerMo
                         SettingsItem("课程表设置", Icons.Outlined.CalendarMonth, "学期、上课时间、显示设置", divider = true) { go(ProfilePage.SCHEDULE) }
                         SettingsItem("同步与数据", Icons.Outlined.Sync, "教务同步、自动更新") { go(ProfilePage.SYNC) }
                     }
-                    SettingsSection("校园服务") { SettingsItem("校园服务账户", Icons.Outlined.WaterDrop, "喝水 · 洗澡") { go(ProfilePage.SERVICES) } }
+                    SettingsSection("校园服务") { SettingsItem("校园服务账户", Icons.Outlined.WaterDrop, "喝水 · 洗澡 · 学习通") { go(ProfilePage.SERVICES) } }
                     SettingsSection("其他") {
                         SettingsItem("应用设置", Icons.Outlined.Settings, divider = true) { go(ProfilePage.APP) }
                         SettingsItem("关于", Icons.Outlined.Info) { go(ProfilePage.ABOUT) }
@@ -158,12 +166,14 @@ fun ProfileScreen(viewModel: MainViewModel, waterModel: WaterViewModel, showerMo
                 ProfilePage.SERVICES -> {
                     SettingsSection {
                         AccountItem("喝水账户", Icons.Outlined.WaterDrop, maskAccount(water.phone), water.loggedIn, water.busy, { go(ProfilePage.WATER) }, divider = true)
-                        AccountItem("洗澡账户", Icons.Outlined.Shower, maskAccount(shower.phone), shower.loggedIn, shower.busy, { go(ProfilePage.SHOWER) })
+                        AccountItem("洗澡账户", Icons.Outlined.Shower, maskAccount(shower.phone), shower.loggedIn, shower.busy, { go(ProfilePage.SHOWER) }, divider = true)
+                        AccountItem("学习通账户", Icons.Outlined.Notifications, maskAccount(xuexitong.phone), xuexitong.loggedIn && !xuexitong.sessionExpired, xuexitong.busy, { go(ProfilePage.XUEXITONG) })
                     }
-                    SettingsHint("分别管理校园喝水与洗澡服务账户")
+                    SettingsHint("分别管理校园喝水、洗澡与学习通通知账户")
                 }
                 ProfilePage.WATER -> WaterAccountPage(water, waterModel) { confirm = it }
                 ProfilePage.SHOWER -> ShowerAccountPage(shower, showerModel) { confirm = it }
+                ProfilePage.XUEXITONG -> XuexitongAccountPage(xuexitong, xuexitongModel)
                 ProfilePage.APP -> {
                     SettingsSection {
                         SettingsItem("欢迎与初次设置", Icons.Outlined.WavingHand,

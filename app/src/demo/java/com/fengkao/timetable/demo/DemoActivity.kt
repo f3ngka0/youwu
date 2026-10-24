@@ -34,18 +34,8 @@ class DemoActivity : ComponentActivity() {
         lifecycleScope.launch {
             val container = (application as TimetableApp).container
             val term = TermCalculator.autoTerm()
-            val start = TermCalculator.today().minusWeeks(4).with(java.time.DayOfWeek.MONDAY)
-            val courses = listOf(
-                course("高等数学", "教学楼 A203", "示例教师甲", 1, 1, 2),
-                course("大学英语", "教学楼 B106", "示例教师乙", 1, 6, 7),
-                course("程序设计基础", "实验楼 C305", "示例教师丙", 2, 3, 5),
-                course("离散数学", "教学楼 A205", "示例教师甲", 3, 1, 2),
-                course("程序设计实验", "实验楼 C302", "示例教师丙", 3, 6, 7),
-                course("数据结构", "教学楼 B208", "示例教师丁", 4, 3, 5),
-                course("大学体育", "运动场", "示例教师戊", 4, 8, 9),
-                course("计算机网络", "教学楼 A301", "示例教师丁", 5, 1, 2),
-                course("通识选修", "教学楼 B201", "示例教师乙", 5, 6, 7),
-            )
+            val start = TermCalculator.today().minusWeeks(6).with(java.time.DayOfWeek.MONDAY)
+            val courses = DemoFixtures.courses
             val now = System.currentTimeMillis()
             withContext(Dispatchers.IO) {
                 container.settings.setAutoSync(false)
@@ -53,15 +43,36 @@ class DemoActivity : ComponentActivity() {
                 container.settings.completeWelcome()
                 container.settings.setTermStartEpochDay(start.toEpochDay(), term)
                 container.settings.setLastSync(term.xnm, term.term, now)
+                container.settings.setTermWeeks(18)
                 container.cache.save(CachedSchedule(term.xnm, term.term, now,
-                    StudentInfo("演示同学", "DEMO-STUDENT", "演示班级", "示例学院", "示例专业", "2026"), courses))
+                    StudentInfo("演示同学", "DEMO-STUDENT", "24计算机科学与技术1班",
+                        "电子信息与人工智能学院", "计算机科学与技术", "2026"), courses))
                 container.changes.save(listOf(
-                    CourseChange(ChangeType.CHANGED, "程序设计基础", "周二 3–5 节 · 教学楼 A203 → 实验楼 C305", now),
-                    CourseChange(ChangeType.ADDED, "通识选修", "周五 6–7 节 · 教学楼 B201", now),
+                    CourseChange(ChangeType.CHANGED, "数据结构", "本周四 3–5 节 · 明科楼 512 → 周五 3–4 节", now),
+                    CourseChange(ChangeType.ADDED, "中国传统文化", "周四 8–9 节 · 图书馆 报告厅", now),
                 ))
-                container.settings.setCourseMeta("程序设计基础", CourseMeta(CourseType.MAJOR, 4.0, true))
-                container.settings.setCourseMeta("程序设计实验", CourseMeta(CourseType.EXP, 2.0))
-                container.settings.setBusyBlocks(listOf(BusyBlock(1, "示例社团例会", 2, 1140, 1230)))
+                container.settings.setCourseMeta("数据结构", CourseMeta(CourseType.MAJOR, 6.0, true))
+                container.settings.setCourseMeta("高等数学（上）", CourseMeta(CourseType.MAJOR, 6.0, true))
+                container.settings.setCourseMeta("程序设计基础实验", CourseMeta(CourseType.EXP, 2.0))
+                container.settings.setCourseMeta("大学体育（三）", CourseMeta(CourseType.PUB, 1.0))
+                container.settings.setTuitionFee(4600)
+                container.settings.setBusyBlocks(listOf(
+                    BusyBlock(1, "班级例会", 9, 1280, 1350),
+                    BusyBlock(3, "程序设计竞赛集训", 10, 1140, 1290),
+                ))
+                // 学习通通知样例：待办 / 课表异动 / 原文三层都有内容可看。
+                // 直接写 store 而不改仓库：release 变体里不存在任何 demo 注入入口。
+                val notices = DemoFixtures.notices(now)
+                com.fengkao.timetable.data.xuexitong.XuexitongStore(this@DemoActivity).apply {
+                    saveLogin("DEMO-STUDENT", "", "[]")
+                    saveNotices(notices)
+                    setLastFetchAt(now - 3 * 60_000L)
+                    setBaselineDone()
+                }
+                // 课程笔记：作业 / 笔记 / 考点三类各一条，含两条提醒。
+                // 先清空再写，否则每次启动都会多出一批新 UUID 的重复笔记。
+                container.notes.all().forEach { container.notes.delete(it.id) }
+                DemoFixtures.notes(TermCalculator.today(), now).forEach { container.notes.upsert(it) }
             }
             val provider = ViewModelProvider(this@DemoActivity)
             val main = provider[MainViewModel::class.java]
@@ -121,9 +132,6 @@ class DemoActivity : ComponentActivity() {
             }
         }
     }
-
-    private fun course(name: String, place: String, teacher: String, day: Int, first: Int, last: Int) =
-        CourseBlock(name, place, teacher, "示例校区", day, first, last, (1..16).toList(), "1–16 周", "演示班级")
 
     // Fixture injection lives exclusively in this build type; release contains no demo hooks.
     @Suppress("UNCHECKED_CAST")

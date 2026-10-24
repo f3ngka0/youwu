@@ -12,7 +12,9 @@ import androidx.work.WorkerParameters
 import com.fengkao.timetable.data.ScheduleRepository
 import com.fengkao.timetable.data.local.ScheduleCache
 import com.fengkao.timetable.data.local.CourseChangeStore
+import com.fengkao.timetable.data.local.CourseNoteStore
 import com.fengkao.timetable.data.local.SettingsStore
+import com.fengkao.timetable.data.xuexitong.XuexitongRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.Duration
@@ -23,7 +25,9 @@ class AppContainer(context: Context) {
     val settings = SettingsStore(appContext)
     val cache = ScheduleCache(appContext)
     val changes = CourseChangeStore(appContext)
+    val notes = CourseNoteStore(appContext)
     val repository = ScheduleRepository(appContext, settings, cache, changes)
+    val xuexitong = XuexitongRepository(appContext)
     // 展示本进程内最近的后台同步结果，不改变原任务或持久化结构。
     val backgroundSyncError = MutableStateFlow<String?>(null)
 }
@@ -36,6 +40,9 @@ class TimetableApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // 进程刚起来时把笔记提醒排上：闹钟被系统清掉（强停/重启）后也能恢复
+        // 读的是几十条的小 JSON，仍放后台线程，避免拖慢冷启动首帧
+        Thread { runCatching { com.fengkao.timetable.notify.NoteReminders.reschedule(this) } }.start()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

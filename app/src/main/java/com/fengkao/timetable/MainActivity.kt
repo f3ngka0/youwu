@@ -53,11 +53,19 @@ class MainActivity : ComponentActivity() {
         com.fengkao.timetable.widget.ServiceWidgetUpdater.updateAll(this)
     }
 
-    /** 桌面 Widget 深链：点击课程 → 打开该课程详情 */
+    /** 桌面 Widget / 学习通通知深链 */
     private fun handleWidgetIntent(intent: Intent?) {
-        if (intent?.action == WidgetClicks.ACTION_OPEN_COURSE) {
-            val key = intent.getStringExtra(WidgetClicks.EXTRA_COURSE_KEY)
-            if (!key.isNullOrBlank()) viewModel.openCourseFromWidget(key)
+        when (intent?.action) {
+            WidgetClicks.ACTION_OPEN_COURSE -> {
+                val key = intent.getStringExtra(WidgetClicks.EXTRA_COURSE_KEY)
+                if (!key.isNullOrBlank()) viewModel.openCourseFromWidget(key)
+            }
+            com.fengkao.timetable.data.xuexitong.XuexitongNotifier.ACTION_OPEN_NOTICES ->
+                viewModel.requestOpenNotices()
+            com.fengkao.timetable.notify.NoteReminders.ACTION_OPEN_NOTES ->
+                intent.getStringExtra(com.fengkao.timetable.notify.NoteReminders.EXTRA_COURSE)
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { viewModel.openNotesForCourse(it) }
         }
     }
 }

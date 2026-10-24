@@ -4,7 +4,7 @@ internal enum class ProfilePage(val title: String) {
     HOME("我的"), ACCOUNT("个人账户"), PERSONAL_INFO("个人信息"), TEACHING_ACCOUNT("教务系统账户"),
     SCHEDULE("课程表设置"), TERM("学期设置"), PERIODS("上课时间"), COURSES("管理已添加课程"),
     SYNC("同步与数据"), TEACHING_SYNC("教务同步设置"), SERVICES("校园服务账户"), WATER("喝水账户"),
-    SHOWER("洗澡账户"), APP("应用设置"), ADVANCED("高级设置"), ABOUT("关于"), LICENSES("开源许可"), INSIGHTS("课程表洞察")
+    SHOWER("洗澡账户"), XUEXITONG("学习通账户"), APP("应用设置"), ADVANCED("高级设置"), ABOUT("关于"), LICENSES("开源许可"), INSIGHTS("课程表洞察")
 }
 
 internal fun pushProfilePage(stack: List<String>, page: ProfilePage): List<String> =

@@ -42,6 +42,9 @@ data class MainUiState(
     val backgroundSyncError: String? = null,
     val courseChanges: List<CourseChange> = emptyList(),
     val courseChangesLoaded: Boolean = false,
+    /** 课程笔记（作业 / 笔记 / 考点），全量常驻：一门课几十条，没必要按需查盘 */
+    val courseNotes: List<com.fengkao.timetable.data.model.CourseNote> = emptyList(),
+    val courseNotesLoaded: Boolean = false,
     val syncMessage: String? = null,
     val loginBusy: Boolean = false,
     val loginError: String? = null,
@@ -53,6 +56,10 @@ data class MainUiState(
     val fetchLogs: List<String> = emptyList(),
     /** 来自桌面 Widget 深链的课程 stableKey，打开详情后即消费置空 */
     val widgetCourseKey: String? = null,
+    /** 点击学习通通知 → 首页自动打开通知中心抽屉 */
+    val openNoticesRequested: Boolean = false,
+    /** 点击笔记提醒 → 打开对应课程详情（值为课程名） */
+    val noteCourseRequested: String? = null,
     val welcomeSaving: Boolean = false,
     val welcomeError: String? = null,
 )
@@ -110,6 +117,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val changes = withContext(Dispatchers.IO) { container.changes.load() }
         _state.update { it.copy(courseChanges = changes, courseChangesLoaded = true) }
     }
+
+    fun loadCourseNotes() = viewModelScope.launch {
+        val notes = withContext(Dispatchers.IO) { container.notes.all() }
+        _state.update { it.copy(courseNotes = notes, courseNotesLoaded = true) }
+    }
+
+    /** 新增或覆盖一条课程笔记。 */
+    fun saveCourseNote(note: com.fengkao.timetable.data.model.CourseNote) = viewModelScope.launch {
+        withContext(Dispatchers.IO) {
+            container.notes.upsert(note)
+            // 提醒落库后立刻重排闹钟，否则设了提醒也不会响
+            com.fengkao.timetable.notify.NoteReminders.reschedule(getApplication())
+        }
+        loadCourseNotes()
+    }
+
+    fun deleteCourseNote(id: String) = viewModelScope.launch {
+        withContext(Dispatchers.IO) {
+            container.notes.delete(id)
+            com.fengkao.timetable.notify.NoteReminders.reschedule(getApplication())
+        }
+        loadCourseNotes()
+    }
+
+    fun setCourseNoteDone(id: String, done: Boolean) = viewModelScope.launch {
+        withContext(Dispatchers.IO) {
+            container.notes.setDone(id, done)
+            // 已完成的提醒要撤掉，未完成的要重新排队
+            com.fengkao.timetable.notify.NoteReminders.reschedule(getApplication())
+        }
+        loadCourseNotes()
+    }
+
+    /** 把相册选中的图片复制进私有目录，返回落盘后的绝对路径。 */
+    suspend fun importNoteImage(bytes: ByteArray): String? =
+        withContext(Dispatchers.IO) { container.notes.addImageBytes(bytes) }
 
     private fun bootstrap() = viewModelScope.launch {
         var s = container.settings.first()
@@ -330,6 +373,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun consumeWidgetCourseKey() =
         _state.update { it.copy(widgetCourseKey = null) }
+
+    /** 系统通知点击 → 首页打开学习通通知中心 */
+    fun requestOpenNotices() = _state.update { it.copy(selectedTab = 0, openNoticesRequested = true) }
+
+    fun consumeOpenNotices() = _state.update { it.copy(openNoticesRequested = false) }
+
+    /** 笔记提醒通知点击 → 首页打开该课程详情 */
+    fun openNotesForCourse(course: String) =
+        _state.update { it.copy(selectedTab = 0, noteCourseRequested = course) }
+
+    fun consumeNoteCourseRequest() =
+        _state.update { it.copy(noteCourseRequested = null) }
 
     fun selectWeek(week: Int) =
         _state.update { it.copy(week = week.coerceIn(1, it.settings.termWeeks), syncMessage = null) }

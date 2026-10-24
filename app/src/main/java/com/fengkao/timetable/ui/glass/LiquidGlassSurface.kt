@@ -57,6 +57,8 @@ fun Modifier.liquidGlassSurface(
     chromatic: Boolean = false,
     corner: Dp? = null,
     pressProgress: (() -> Float)? = null,
+    // 投影强度覆盖：落在画布中间的玻璃卡不需要外投影（浅灰画布上会读成一团灰晕），传 0f 关掉
+    shadowAlpha: Float = elevation.shadowAlpha,
     onSurface: (DrawScope.() -> Unit)? = null,
 ): Modifier {
     val blurPx = with(LocalDensity.current) { elevation.blurDp.dp.toPx() }
@@ -73,7 +75,7 @@ fun Modifier.liquidGlassSurface(
                 lens(lensPx, lensPx, chromaticAberration = chromatic)
             },
             highlight = { Highlight.Default.copy(alpha = elevation.highlightAlpha) },
-            shadow = { Shadow(alpha = elevation.shadowAlpha) },
+            shadow = { Shadow(alpha = shadowAlpha) },
             layerBlock = {
                 pressProgress?.let { pp ->
                     val progress = pp()

@@ -2,16 +2,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 笔记提醒是「今晚 20:00」这类分钟级时刻，需要精确闹钟；未授权时自动退化为非精确 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <!-- Android 11+ 包可见性：用于「去学习通」时判断官方 App 是否安装 -->
+    <queries>
+        <package android:name="com.chaoxing.mobile" />
+    </queries>
 
     <application
         android:name=".TimetableApp"
@@ -37,6 +45,18 @@
 
         <activity android:name=".widget.ServiceWidgetActivity" android:exported="false" android:label="组件设备绑定" />
         <activity android:name=".widget.ServiceWidgetPreviewActivity" android:exported="false" android:label="生活服务组件" />
+
+        <!-- 课程笔记提醒的精确闹钟回执（笔记到点发系统通知） -->
+        <receiver
+            android:name=".notify.NoteReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.fengkao.timetable.NOTE_REMINDER_TICK" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
         <receiver android:name=".widget.WaterControlWidgetProvider" android:exported="false" android:label="@string/water_control_widget_label">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/water_control_widget" />

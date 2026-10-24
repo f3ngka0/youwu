@@ -24,3 +24,5 @@ __pycache__/
 *.log
 *.sqlite*
 .release-private/
+
+.verify-build/

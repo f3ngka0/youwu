@@ -99,6 +99,36 @@ data class CustomCourse(
     }
 }
 
+/**
+ * 课程笔记：一门课下用户自己记的东西。
+ *
+ * 三种类型（作业 / 笔记 / 考点）用同一张表，只是 kind 不同——
+ * 用户心里「这门课要交什么、老师讲了什么、考什么」本来就是同一处翻。
+ */
+@Serializable
+data class CourseNote(
+    val id: String,
+    /** 归属课程名，与 CourseBlock.name 对齐 */
+    val course: String,
+    val kind: NoteKind = NoteKind.NOTE,
+    val content: String = "",
+    /** 图片的本地绝对路径（复制到 files/notes 后再存，原图被删也不影响） */
+    val images: List<String> = emptyList(),
+    /** 可选提醒时间；null 表示不提醒 */
+    val remindAt: Long? = null,
+    val remindText: String = "",
+    val done: Boolean = false,
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L,
+)
+
+@Serializable
+enum class NoteKind(val label: String) {
+    HOMEWORK("作业"),
+    NOTE("笔记"),
+    POINT("考点"),
+}
+
 /** 学校作息时间表（默认 12 节） */
 fun defaultPeriodTimes(): List<PeriodTime> = listOf(
     PeriodTime(1, 8, 0, 8, 40),

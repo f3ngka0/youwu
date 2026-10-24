@@ -120,14 +120,21 @@ private val TabDefs = listOf(
 /** 选项内容的按压缩放系数（拖动药丸时图标随之放大） */
 val LocalTabPressScale = staticCompositionLocalOf<() -> Float> { { 1f } }
 
+/** 画布排课模式开关：开启时底栏让位，把底部空间还给排课表单 */
+val LocalArrangeMode = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
+
 /** 主框架：内容 + 悬浮液态玻璃底栏（backdrop 实时折射课程内容） */
 @Composable
 fun MainScaffold(viewModel: MainViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val waterModel: WaterViewModel = viewModel()
     val showerModel: ShowerViewModel = viewModel()
+    val xuexitongModel: com.fengkao.timetable.ui.xuexitong.XuexitongViewModel = viewModel()
+    com.fengkao.timetable.ui.xuexitong.XuexitongNotificationPermissionEffect(xuexitongModel)
     val tabStateHolder = rememberSaveableStateHolder()
     val backdrop = rememberLayerBackdrop()
+    // 画布排课模式：底栏让位，否则会压住底部的排课表单（demo 也是这么处理的）
+    var arrangeActive by remember { mutableStateOf(false) }
 
     Box(
         Modifier
@@ -146,28 +153,35 @@ fun MainScaffold(viewModel: MainViewModel) {
                 label = "tab",
             ) { tab ->
                 tabStateHolder.SaveableStateProvider(tab) {
-                    CompositionLocalProvider(LocalPredictiveBack provides state.settings.predictiveBack, LocalPageActive provides (tab == state.selectedTab)) {
+                    CompositionLocalProvider(LocalPredictiveBack provides state.settings.predictiveBack, LocalPageActive provides (tab == state.selectedTab), LocalArrangeMode provides { on: Boolean -> arrangeActive = on }) {
                     when (tab) {
                         1 -> WaterScreen(waterModel)
                         2 -> ShowerScreen(showerModel)
-                        3 -> ProfileScreen(viewModel, waterModel, showerModel)
-                        else -> ScheduleScreen(viewModel)
+                        3 -> ProfileScreen(viewModel, waterModel, showerModel, xuexitongModel)
+                        else -> ScheduleScreen(viewModel, xuexitongModel)
                     }
                     }
                 }
             }
         }
 
-        GlassBottomBar(
-            selected = state.selectedTab,
-            onTabSelected = viewModel::setTab,
-            backdrop = backdrop,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 10.dp),
-        )
+        // 排课模式收起底栏：底部整块让给排课表单，避免两张卡叠在一起
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !arrangeActive,
+            enter = fadeIn(tween(120)),
+            exit = fadeOut(tween(120)),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            GlassBottomBar(
+                selected = state.selectedTab,
+                onTabSelected = viewModel::setTab,
+                backdrop = backdrop,
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .navigationBarsPadding()
+                    .padding(bottom = 10.dp),
+            )
+        }
     }
 }
 

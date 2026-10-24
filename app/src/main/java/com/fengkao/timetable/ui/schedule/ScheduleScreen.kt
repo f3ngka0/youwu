@@ -14,6 +14,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +70,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,8 +99,10 @@ import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import com.fengkao.timetable.data.TermCalculator
 import com.fengkao.timetable.data.model.CourseBlock
+import com.fengkao.timetable.data.model.CourseNote
 import com.fengkao.timetable.data.model.PeriodTime
 import com.fengkao.timetable.ui.MainViewModel
+import com.fengkao.timetable.ui.LocalArrangeMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import com.fengkao.timetable.ui.glass.GlassElevation
@@ -118,6 +123,13 @@ import com.fengkao.timetable.ui.theme.brandGradient
 import com.fengkao.timetable.ui.theme.CoursePalette
 import com.fengkao.timetable.ui.theme.paletteFor
 import com.fengkao.timetable.ui.theme.paletteMapForCourses
+import com.fengkao.timetable.ui.water.ServiceMessage
+import com.fengkao.timetable.ui.xuexitong.NextClassUi
+import com.fengkao.timetable.ui.xuexitong.NoticeCenterSheet
+import com.fengkao.timetable.ui.xuexitong.SmartNoticeCard
+import com.fengkao.timetable.ui.xuexitong.XuexitongLauncher
+import com.fengkao.timetable.ui.xuexitong.XuexitongLogin
+import com.fengkao.timetable.ui.xuexitong.XuexitongViewModel
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -140,20 +152,47 @@ private fun periodRangeText(pts: List<PeriodTime>, s: Int, e: Int): String {
     return "$st – $en"
 }
 
+/** 单节写「第3节」，连堂写「3-5节」：手动加的课常常只有一节，写 3-3 节读起来很怪。 */
+private fun periodSpanText(start: Int, end: Int): String =
+    if (end <= start) "第${start}节" else "${start}-${end}节"
+
 /** 卡片仅顶部两角圆角，左右与底边铺满屏幕 */
 private val CardTopShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ScheduleScreen(viewModel: MainViewModel) {
+fun ScheduleScreen(viewModel: MainViewModel, xuexitongModel: XuexitongViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val xuexitong by xuexitongModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var showWeekSheet by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showPlusSheet by remember { mutableStateOf(false) }
-    var showAddCourse by remember { mutableStateOf(false) }
+    // 画布排课模式：复用主课表本身做编辑器（不是再弹一个填表抽屉）
+    var arrange by remember { mutableStateOf<ArrangeState?>(null) }
+    // 排课模式下让底栏让位，否则液态玻璃底栏会压住底部表单
+    val setArrangeMode = LocalArrangeMode.current
+    LaunchedEffect(arrange != null) { setArrangeMode(arrange != null) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { setArrangeMode(false) }
+    }
+    var showNoticeCenter by remember { mutableStateOf(false) }
+    var showXuexitongLogin by remember { mutableStateOf(false) }
     var detailCourse by remember { mutableStateOf<CourseBlock?>(null) }
+    // 「改课表」预填：从课表异动卡把新时间/地点带进添加课程表单，用户确认后才落库
+    var pendingChange by remember { mutableStateOf<com.fengkao.timetable.data.xuexitong.ScheduleChange?>(null) }
+
+    LaunchedEffect(Unit) { xuexitongModel.enter() }
+    LaunchedEffect(state.openNoticesRequested) {
+        if (state.openNoticesRequested) {
+            showNoticeCenter = true
+            viewModel.consumeOpenNotices()
+        }
+    }
+    LaunchedEffect(xuexitong.loggedIn, xuexitong.sessionExpired) {
+        if (xuexitong.loggedIn && !xuexitong.sessionExpired) showXuexitongLogin = false
+    }
 
     val settings = state.settings
     val term = state.term ?: TermCalculator.autoTerm()
@@ -168,6 +207,18 @@ fun ScheduleScreen(viewModel: MainViewModel) {
         val key = state.widgetCourseKey ?: return@LaunchedEffect
         viewModel.consumeWidgetCourseKey()
         courses.firstOrNull { it.stableKey == key }?.let { detailCourse = it }
+    }
+
+    // 笔记提醒通知深链：点通知 → 打开对应课程详情，看笔记
+    LaunchedEffect(state.noteCourseRequested) {
+        val name = state.noteCourseRequested ?: return@LaunchedEffect
+        viewModel.consumeNoteCourseRequest()
+        courses.firstOrNull { it.name == name }?.let { detailCourse = it }
+    }
+
+    // 课程笔记一次载入常驻：几十条的小文件，进详情页再读会有可见的空白闪一下
+    LaunchedEffect(Unit) {
+        if (!state.courseNotesLoaded) viewModel.loadCourseNotes()
     }
 
     // 梧州学院实时天气（Open-Meteo，无Key；失败自动隐藏）：大 emoji 与详情行都由天气决定
@@ -199,6 +250,13 @@ fun ScheduleScreen(viewModel: MainViewModel) {
             value = java.time.LocalTime.now()
         }
     }
+    // 待办倒计时也要跟着走：「还剩 3 小时」不能停在打开页面的那一刻
+    val nowMillis by produceState(initialValue = System.currentTimeMillis()) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            value = System.currentTimeMillis()
+        }
+    }
     val courseStatus = remember(nowClock, courses, settings) {
         computeCourseStatus(
             courses = courses,
@@ -210,6 +268,18 @@ fun ScheduleScreen(viewModel: MainViewModel) {
             pts = settings.periodTimes(),
         )
     }
+    val nextClassUi = courseStatus?.let {
+        NextClassUi(
+            statusTitle = it.title,
+            courseName = it.name,
+            timeText = it.timeText,
+            place = it.place,
+            startTime = it.timeText.substringBefore("–").substringBefore("-").trim(),
+            teacher = it.teacher,
+            dayPeriod = it.dayPeriod,
+            autoFocus = it.autoFocus,
+        )
+    }
 
     Column(
         Modifier
@@ -217,6 +287,7 @@ fun ScheduleScreen(viewModel: MainViewModel) {
             .background(appBackground())
             .statusBarsPadding()
     ) {
+        if (arrange == null) {
         Spacer(Modifier.height(2.dp))
 
         // ---- 头部：大 emoji（完全由天气决定）+ 问候 / 天气详情 ----
@@ -252,49 +323,26 @@ fun ScheduleScreen(viewModel: MainViewModel) {
             GlassCircleButton(Icons.Filled.Add, "添加", scheduleBackdrop) { showPlusSheet = true }
         }
 
-        // ---- 动态课程状态区（一级信息：正在上/下一节、多久、在哪） ----
-        courseStatus?.let { st ->
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .liquidGlassSurface(
-                            backdrop = scheduleBackdrop,
-                            elevation = GlassElevation.Control,
-                            corner = 18.dp,
-                        )
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    // 状态行（二级强调）
-                    Text(
-                        st.title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = BrandGreen,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    // 课程名（一级：最大最粗）
-                    Text(
-                        st.name,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = InkDark,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (st.timeText.isNotBlank()) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            "${st.timeText} · ${st.place}".ifBlank { st.place },
-                            fontSize = 12.sp,
-                            color = InkMid,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
+        // ---- 智能双模卡片：学习通通知 / 临近上课 ----
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            SmartNoticeCard(
+                notices = xuexitong.notices,
+                locallyReadIds = xuexitong.locallyReadIds,
+                unreadCount = xuexitong.unreadCount,
+                loggedIn = xuexitong.loggedIn,
+                sessionExpired = xuexitong.sessionExpired,
+                lastFetchAt = xuexitong.lastFetchAt,
+                courses = courses,
+                nextClass = nextClassUi,
+                tasks = xuexitong.tasks,
+                now = nowMillis,
+                changesCount = xuexitong.changes.size,
+                // 与底栏同一套 backdrop：卡片边缘的折射反射课表内容
+                backdrop = scheduleBackdrop,
+                onOpenCenter = { showNoticeCenter = true },
+                onConnect = { showXuexitongLogin = true },
+            )
         }
 
         // ---- 周次上下文（二级信息） ----
@@ -317,6 +365,31 @@ fun ScheduleScreen(viewModel: MainViewModel) {
             Spacer(Modifier.width(8.dp))
             Text(term.label, fontSize = 11.sp, color = InkGray)
         }
+        } else {
+            // 排课模式下顶替问候与智能卡的窄条：把可视高度全部让给课表
+            ArrangeTopBar(onExit = { arrange = null })
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "第 ${state.week} 周",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = InkDark,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "点课表空白格开始排课",
+                    fontSize = 11.sp,
+                    color = InkGray,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
 
         // ---- 课表卡片：铺满左右与底部，仅顶部大圆角；左右拖拽切换周次 ----
         Box(Modifier.weight(1f)) {
@@ -327,7 +400,11 @@ fun ScheduleScreen(viewModel: MainViewModel) {
                     .background(GlassSurfaceColor, CardTopShape)
                     .border(1.dp, GlassEdge, CardTopShape)
                     .clip(CardTopShape) // 子元素背景（表头/网格）不越过顶部圆角
-                    .pointerDragWeekSwitch { delta -> viewModel.changeWeek(delta) }
+                    // 排课时不能再左右拖周次：横向手势要让给"拖着色块换天"
+                    .then(
+                        if (arrange == null) Modifier.pointerDragWeekSwitch { delta -> viewModel.changeWeek(delta) }
+                        else Modifier
+                    )
             ) {
                 WeekAnimatedGrid(
                     state = state,
@@ -335,8 +412,89 @@ fun ScheduleScreen(viewModel: MainViewModel) {
                     paletteMap = paletteMap,
                     termStart = termStart,
                     today = today,
-                    onCourseClick = { detailCourse = it },
+                    draft = arrange?.let { a ->
+                        GridDraft(
+                            slots = a.slots,
+                            activeIndex = a.activeIndex,
+                            conflictIndexes = a.conflictIndexes,
+                            label = a.name,
+                            place = a.place,
+                            onGesture = a::onGesture,
+                        )
+                    },
+                    onCourseClick = { if (arrange == null) detailCourse = it },
                 )
+            }
+        }
+
+        // 底部精简表单：只填"课程信息"，时间已经在上面拖好了
+        arrange?.let { a ->
+            ArrangePanel(
+                state = a,
+                periodTimes = settings.periodTimes(),
+                onCancel = { arrange = null },
+                onSave = {
+                    a.build().forEach { viewModel.addCustomCourse(it) }
+                    arrange = null
+                    val label = a.name.trim()
+                    Toast.makeText(context, "已排入课表：$label", Toast.LENGTH_SHORT).show()
+                },
+            )
+        }
+    }
+
+    // ---- 学习通通知中心抽屉 ----
+    if (showNoticeCenter) {
+        NoticeCenterSheet(
+            notices = xuexitong.notices,
+            locallyReadIds = xuexitong.locallyReadIds,
+            archivedIds = xuexitong.archivedIds,
+            doneTaskKeys = xuexitong.doneTaskKeys,
+            unreadCount = xuexitong.unreadCount,
+            lastFetchAt = xuexitong.lastFetchAt,
+            loggedIn = xuexitong.loggedIn,
+            sessionExpired = xuexitong.sessionExpired,
+            busy = xuexitong.busy,
+            courses = courses,
+            onDismiss = { showNoticeCenter = false },
+            onRefresh = { xuexitongModel.refresh() },
+            onMarkAllRead = { xuexitongModel.markAllRead() },
+            onMarkRead = xuexitongModel::markRead,
+            onArchive = xuexitongModel::archive,
+            onUnarchive = xuexitongModel::unarchive,
+            onArchiveRead = { xuexitongModel.archiveRead() },
+            onTaskDone = { key, done -> xuexitongModel.setTaskDone(key, done) },
+            onConnect = {
+                showNoticeCenter = false
+                showXuexitongLogin = true
+            },
+            onOpenChaoxing = { XuexitongLauncher.open(context) },
+            now = nowMillis,
+            onApplyChange = { change ->
+                pendingChange = change
+                showNoticeCenter = false
+                // 直接进画布排课：调课通知的新时间会作为幽灵块涂在课表上
+                arrange = buildArrangeState(change, courses, settings.termWeeks, termStart)
+                pendingChange = null
+            },
+        )
+    }
+
+    // ---- 学习通登录 ----
+    if (showXuexitongLogin) {
+        ModalBottomSheet(
+            onDismissRequest = { showXuexitongLogin = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = SheetColor,
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 28.dp)) {
+                XuexitongLogin(
+                    state = xuexitong,
+                    model = xuexitongModel,
+                    showHeading = true,
+                    submitLabel = if (xuexitong.sessionExpired) "重新登录学习通" else "登录学习通",
+                )
+                ServiceMessage(xuexitong.message, xuexitong.error)
             }
         }
     }
@@ -353,7 +511,7 @@ fun ScheduleScreen(viewModel: MainViewModel) {
                 Spacer(Modifier.height(8.dp))
                 PlusAction(Icons.Outlined.Checkroom, "添加课程") {
                     showPlusSheet = false
-                    showAddCourse = true
+                    arrange = buildArrangeState(null, courses, settings.termWeeks, termStart)
                 }
                 PlusAction(Icons.Filled.Search, "搜索课程") { showPlusSheet = false; showSearch = true }
                 PlusAction(Icons.Outlined.CalendarMonth, "切换学期 / 周次") { showPlusSheet = false; showWeekSheet = true }
@@ -459,26 +617,66 @@ fun ScheduleScreen(viewModel: MainViewModel) {
         )
     }
 
-    // ---- 添加课程 ----
-    if (showAddCourse) {
-        AddCourseSheet(
-            termWeeks = settings.termWeeks,
-            onDismiss = { showAddCourse = false },
-            onAdd = {
-                viewModel.addCustomCourse(it)
-                showAddCourse = false
-                Toast.makeText(context, "已添加：${it.name}", Toast.LENGTH_SHORT).show()
-            },
-        )
-    }
+    // ---- 添加课程（可带「课表异动」预填） ----
 
     // ---- 课程详情 ----
     detailCourse?.let { course ->
-        CourseDetailSheet(
-            course = course,
-            periodTimes = settings.periodTimes(),
-            onDismiss = { detailCourse = null },
-        )
+        var noteEditor by remember(course.stableKey) { mutableStateOf<CourseNote?>(null) }
+        var noteEditorOpen by remember(course.stableKey) { mutableStateOf(false) }
+        // 查看与编辑分两层：点笔记先看（大图/全文），要改再点笔进编辑器
+        var noteView by remember(course.stableKey) { mutableStateOf<CourseNote?>(null) }
+        val courseNotes = state.courseNotes.filter { it.course == course.name }
+        // 详情页在「查看/编辑」开着时收起：两层 BottomSheet 叠在一起，下层卡片会透上来，
+        // 看起来像渲染错位；关掉上层（保存/返回）详情页会原样回来
+        if (!noteEditorOpen && noteView == null) {
+            CourseDetailSheet(
+                course = course,
+                periodTimes = settings.periodTimes(),
+                notes = courseNotes,
+                onDismiss = { detailCourse = null },
+                onAddNote = {
+                    noteEditor = null
+                    noteEditorOpen = true
+                },
+                onOpenNote = { noteView = it },
+                onToggleNoteDone = { viewModel.setCourseNoteDone(it.id, !it.done) },
+            )
+        }
+        noteView?.let { viewed ->
+            // 笔记可能刚被删除或改了勾选状态，永远按 id 取最新一份
+            val live = state.courseNotes.firstOrNull { it.id == viewed.id } ?: viewed
+            NoteViewSheet(
+                courseName = course.name,
+                note = live,
+                onDismiss = { noteView = null },
+                onEdit = {
+                    noteEditor = live
+                    noteView = null
+                    noteEditorOpen = true
+                },
+                onDelete = {
+                    viewModel.deleteCourseNote(live.id)
+                    noteView = null
+                },
+            )
+        }
+        if (noteEditorOpen) {
+            NoteEditorSheet(
+                courseName = course.name,
+                existing = noteEditor,
+                onDismiss = { noteEditorOpen = false },
+                onSave = {
+                    viewModel.saveCourseNote(it)
+                    noteEditorOpen = false
+                    Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                },
+                onDelete = {
+                    viewModel.deleteCourseNote(it)
+                    noteEditorOpen = false
+                },
+                onImportImage = { bytes -> viewModel.importNoteImage(bytes) },
+            )
+        }
     }
 }
 
@@ -491,6 +689,7 @@ private fun WeekAnimatedGrid(
     paletteMap: Map<String, CoursePalette>,
     termStart: LocalDate,
     today: LocalDate,
+    draft: GridDraft? = null,
     onCourseClick: (CourseBlock) -> Unit,
 ) {
     val settings = state.settings
@@ -510,6 +709,17 @@ private fun WeekAnimatedGrid(
         val dow = today.takeIf { !it.isBefore(ws) && !it.isAfter(we) }
         val listScroll = rememberScrollState()
         SyncBarScrim(listScroll)
+        // 排课时把草稿时段滚进视野：点「加时段」会挑一段最近的空闲时间（常在 9-11 节），
+        // 它可能落在屏幕外，不滚过去用户会以为按钮点了没反应
+        val draftTop = draft?.slots?.getOrNull(draft.activeIndex)?.start
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        LaunchedEffect(draftTop) {
+            if (draftTop == null) return@LaunchedEffect
+            val rowPx = with(density) { ScheduleRowHeight.toPx() }
+            // 往上留一行做上下文，别把草稿卡顶到表头下面
+            val target = ((draftTop - 2) * rowPx).toInt().coerceAtLeast(0)
+            listScroll.animateScrollTo(target)
+        }
         Column(
             Modifier
                 .fillMaxSize()
@@ -522,6 +732,7 @@ private fun WeekAnimatedGrid(
                 periodTimes = settings.periodTimes(),
                 paletteMap = paletteMap,
                 showWeekend = settings.showWeekend,
+                draft = draft,
                 onCourseClick = onCourseClick,
             )
             Spacer(Modifier.height(116.dp))
@@ -618,9 +829,12 @@ private fun Modifier.pointerDragWeekSwitch(onSwitch: (Int) -> Unit): Modifier =
 private fun CourseDetailSheet(
     course: CourseBlock,
     periodTimes: List<PeriodTime>,
+    notes: List<CourseNote>,
     onDismiss: () -> Unit,
+    onAddNote: () -> Unit,
+    onOpenNote: (CourseNote) -> Unit,
+    onToggleNoteDone: (CourseNote) -> Unit,
 ) {
-    val context = LocalContext.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -633,35 +847,35 @@ private fun CourseDetailSheet(
                 .verticalScroll(rememberScrollState())
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(brandGradient()),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Outlined.MenuBook, null, Modifier.size(26.dp), tint = Color.White)
-                }
+                // 用课程自己的配色和首字做图标：与课表网格里的色块对得上，
+                // 比所有课共用一个蓝色书本更能让人确认「点对了哪门课」
+                CourseMonogram(course.name, size = 58.dp, corner = 17.dp, fontSize = 23.sp)
                 Spacer(Modifier.width(14.dp))
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(
                         course.name,
                         fontSize = 19.sp,
+                        lineHeight = 25.sp,
                         fontWeight = FontWeight.Bold,
                         color = InkDark,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(3.dp))
                     Text(
                         "${course.teacher.ifBlank { "教师待定" }} · ${course.place.ifBlank { "教室待定" }}",
                         fontSize = 13.sp,
+                        lineHeight = 18.sp,
                         color = InkMid,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
             Spacer(Modifier.height(16.dp))
             DetailInfoRow(
                 Icons.Outlined.Schedule, "时间",
-                "${DAY_NAMES[course.dayOfWeek - 1]} ${periodRangeText(periodTimes, course.startPeriod, course.endPeriod)}（${course.startPeriod}-${course.endPeriod}节）",
+                "${DAY_NAMES[course.dayOfWeek - 1]} ${periodRangeText(periodTimes, course.startPeriod, course.endPeriod)}（${periodSpanText(course.startPeriod, course.endPeriod)}）",
             )
             DetailInfoRow(Icons.Outlined.Notes, "周次", course.weeksText.ifBlank { course.weeks.joinToString("、") })
             DetailInfoRow(Icons.Outlined.LocationOn, "地点", course.place.ifBlank { "—" })
@@ -670,52 +884,12 @@ private fun CourseDetailSheet(
             DetailInfoRow(Icons.Outlined.School, "教学班", course.className.ifBlank { "—" })
 
             Spacer(Modifier.height(18.dp))
-            // ---- 课堂笔记（占位） ----
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(GlassControlColor)
-                    .border(1.dp, GlassEdge, RoundedCornerShape(20.dp))
-                    .padding(16.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("课堂笔记", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = InkDark)
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        "全部 >",
-                        fontSize = 12.sp,
-                        color = BrandGreen,
-                        modifier = Modifier.clickable {
-                            Toast.makeText(context, "课堂笔记功能开发中", Toast.LENGTH_SHORT).show()
-                        },
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "暂无课堂笔记，点击下方按钮记录本节课的要点",
-                    fontSize = 12.sp,
-                    color = InkGray,
-                )
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color.White.copy(alpha = 0.85f))
-                        .clickable {
-                            Toast.makeText(context, "课堂笔记功能开发中", Toast.LENGTH_SHORT).show()
-                        }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Add, null, Modifier.size(16.dp), tint = InkDark)
-                        Spacer(Modifier.width(6.dp))
-                        Text("添加课堂笔记", fontSize = 13.sp, color = InkDark)
-                    }
-                }
-            }
+            CourseNotesSection(
+                notes = notes,
+                onAdd = onAddNote,
+                onOpen = onOpenNote,
+                onToggleDone = onToggleNoteDone,
+            )
         }
     }
 }
@@ -837,6 +1011,12 @@ private data class CourseStatus(
     val name: String,
     val timeText: String,
     val place: String,
+    /** 任课老师：首页卡把它和教室并排做成两个小胶囊。 */
+    val teacher: String = "",
+    /** 「周一 第2-3节」：直接给课表格子里的坐标，比纯时间更容易对上课程表。 */
+    val dayPeriod: String = "",
+    /** 正在上课或距上课 ≤ 30 分钟：首页卡片自动切到课程模式。 */
+    val autoFocus: Boolean = false,
 )
 
 private fun durationText(minutes: Long): String =
@@ -863,6 +1043,15 @@ private fun computeCourseStatus(
             it.dayOfWeek == day.dayOfWeek.value && week in it.weeks && it.stableKey !in hidden
         }.sortedBy { it.startPeriod }
 
+    // 卡片上「周一 第2-3节」这两个信息来自课表格子本身，用户对着课表能立刻定位
+    fun dayPeriodOf(day: LocalDate, c: CourseBlock): String {
+        val wd = "一二三四五六日"[day.dayOfWeek.value - 1]
+        val start = c.startPeriod
+        val end = c.endPeriod
+        val period = if (end > start) "第${start}-${end}节" else "第${start}节"
+        return "周$wd $period"
+    }
+
     if (inTerm) {
         val list = dayCourses(today, realWeek)
         for (c in list) {
@@ -872,6 +1061,9 @@ private fun computeCourseStatus(
                 val mins = java.time.Duration.between(now, en).toMinutes().coerceAtLeast(0)
                 return CourseStatus(
                     "正在上课 · 还有${durationText(mins)}下课", c.name, "$st–$en", c.place,
+                    teacher = c.teacher,
+                    dayPeriod = dayPeriodOf(today, c),
+                    autoFocus = true,
                 )
             }
         }
@@ -881,6 +1073,9 @@ private fun computeCourseStatus(
                 val mins = java.time.Duration.between(now, st).toMinutes()
                 return CourseStatus(
                     "下一节课 · ${durationText(mins)}后", c.name, "$st–${endOf(c.endPeriod)}", c.place,
+                    teacher = c.teacher,
+                    dayPeriod = dayPeriodOf(today, c),
+                    autoFocus = mins <= 30,
                 )
             }
         }
@@ -894,6 +1089,8 @@ private fun computeCourseStatus(
         val dayLabel = if (d == 1L) "明天" else "周${"一二三四五六日"[day.dayOfWeek.value - 1]}"
         return CourseStatus(
             "下一节课 · $dayLabel $st", first.name, "$st–${endOf(first.endPeriod)}", first.place,
+            teacher = first.teacher,
+            dayPeriod = dayPeriodOf(day, first),
         )
     }
     return if (inTerm) CourseStatus("今日课程已结束", "近期无更多课程", "", "")
@@ -962,197 +1159,55 @@ private suspend fun fetchWuzhouWeather(): WeatherNow? = withContext(Dispatchers.
 }
 
 
-// ---------------------------------------------------------------- 添加课程
 
-/** 手动添加课程：本地保存、与教务课表合并显示，同步不影响 */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun AddCourseSheet(
+/**
+ * 进入画布排课模式：
+ * - 从「课表异动」进来时，通知里写明的新时间直接作为幽灵块涂在课表上，用户确认即可；
+ *   互调 / 停课 / 待确认的原文没写新时间，就留一个空格让他自己点。
+ * - 从「+ 添加课程」进来时，自动找当天最近的一个空位作为起点。
+ */
+private fun buildArrangeState(
+    change: com.fengkao.timetable.data.xuexitong.ScheduleChange?,
+    courses: List<CourseBlock>,
     termWeeks: Int,
-    onDismiss: () -> Unit,
-    onAdd: (com.fengkao.timetable.data.model.CustomCourse) -> Unit,
-) {
-    var name by remember { mutableStateOf("") }
-    var place by remember { mutableStateOf("") }
-    var teacher by remember { mutableStateOf("") }
-    var day by remember { mutableStateOf(1) }
-    var start by remember { mutableStateOf(1) }
-    var count by remember { mutableStateOf(2) }
-    var startWeek by remember { mutableStateOf(1) }
-    var endWeek by remember { mutableStateOf(termWeeks) }
-    var oddOnly by remember { mutableStateOf(false) }
-    var evenOnly by remember { mutableStateOf(false) }
-
-    fun commitOdd(o: Boolean) {
-        oddOnly = o
-        if (o) evenOnly = false
+    termStart: LocalDate,
+): ArrangeState {
+    val known = change != null && change.applicable
+    val day = if (known) change?.toDate?.dayOfWeek?.value else null
+    val start = if (known) change?.toStartPeriod else null
+    val end = if (known) change?.toEndPeriod else null
+    val slot = if (day != null && start != null) {
+        ArrangeSlot(day, start, (end ?: start).coerceAtLeast(start))
+    } else {
+        // 没有指定时间：从今天这一列往下找一段两节的空位
+        val todayDay = TermCalculator.today().dayOfWeek.value
+        firstFreeSlot(courses, todayDay)
     }
-    fun commitEven(e: Boolean) {
-        evenOnly = e
-        if (e) oddOnly = false
-    }
+    val week = if (known) {
+        TermCalculator.weekOf(termStart, change?.toDate ?: TermCalculator.today())
+            .coerceIn(1, termWeeks)
+    } else null
+    return ArrangeState(
+        courses = courses,
+        termWeeks = termWeeks,
+        prefillName = change?.courseName.orEmpty(),
+        prefillPlace = if (known) change?.place.orEmpty() else "",
+        prefillSlots = listOf(slot),
+        prefillWeek = week,
+    )
+}
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = SheetColor,
-    ) {
-        Column(
-            Modifier
-                .padding(horizontal = 18.dp)
-                .padding(bottom = 24.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            Text("添加课程", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = InkDark)
-            Text(
-                "保存在本机，与教务课表合并显示；教务同步不会覆盖",
-                fontSize = 11.sp,
-                color = InkGray,
-                modifier = Modifier.padding(top = 2.dp),
-            )
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it.take(24) },
-                label = { Text("课程名称 *") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = place,
-                    onValueChange = { place = it.take(20) },
-                    label = { Text("教室") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = teacher,
-                    onValueChange = { teacher = it.take(12) },
-                    label = { Text("教师") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
+/** 从指定那天开始，找第一段没被占用的两节课 */
+private fun firstFreeSlot(courses: List<CourseBlock>, preferredDay: Int): ArrangeSlot {
+    val days = listOf(preferredDay, 1, 3, 5, 2, 4, 6, 7).map { ((it - 1) % 7) + 1 }.distinct()
+    for (d in days) {
+        for (s in 1..11 step 2) {
+            val e = s + 1
+            val clash = courses.any { c ->
+                c.dayOfWeek == d && !(e < c.startPeriod || s > c.endPeriod)
             }
-
-            Spacer(Modifier.height(14.dp))
-            Text("星期", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkDark)
-            Spacer(Modifier.height(6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("一", "二", "三", "四", "五", "六", "日").forEachIndexed { i, d ->
-                    val selected = day == i + 1
-                    Text(
-                        d,
-                        fontSize = 12.sp,
-                        color = if (selected) Color.White else InkMid,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(if (selected) BrandGreen else GlassControlColor)
-                            .clickable { day = i + 1 }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Text(
-                "节次：第 $start 节 起，共 $count 节（第 ${start + count - 1} 节止）",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = InkDark,
-            )
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StepperButton("−") { if (start > 1) start-- }
-                Text("$start", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = InkDark)
-                StepperButton("+") { if (start < 12) start++ }
-                Spacer(Modifier.width(10.dp))
-                StepperButton("−") { if (count > 1) count-- }
-                Text("$count", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = InkDark)
-                StepperButton("+") { if (start + count - 1 < 12) count++ }
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Text("周次：$startWeek - $endWeek 周", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkDark)
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StepperButton("−") { if (startWeek > 1) startWeek-- }
-                Text("$startWeek", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = InkDark)
-                StepperButton("+") { if (startWeek < endWeek) startWeek++ }
-                Spacer(Modifier.width(10.dp))
-                StepperButton("−") { if (endWeek > startWeek) endWeek-- }
-                Text("$endWeek", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = InkDark)
-                StepperButton("+") { if (endWeek < termWeeks) endWeek++ }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WeekToggle("单周", oddOnly) { commitOdd(!oddOnly) }
-                WeekToggle("双周", evenOnly) { commitEven(!evenOnly) }
-                WeekToggle("每周", !oddOnly && !evenOnly) { commitOdd(false); commitEven(false) }
-            }
-
-            Spacer(Modifier.height(16.dp))
-            val valid = name.isNotBlank()
-            Text(
-                if (valid) "添加课程" else "请填写课程名称",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (valid) Color.White else InkGray,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (valid) BrandGreen else GlassControlColor)
-                    .clickable(enabled = valid) {
-                        onAdd(
-                            com.fengkao.timetable.data.model.CustomCourse(
-                                name = name.trim(),
-                                place = place.trim(),
-                                teacher = teacher.trim(),
-                                dayOfWeek = day,
-                                startPeriod = start,
-                                endPeriod = start + count - 1,
-                                startWeek = startWeek,
-                                endWeek = endWeek,
-                                oddOnly = oddOnly,
-                                evenOnly = evenOnly,
-                            )
-                        )
-                    }
-                    .padding(vertical = 12.dp),
-            )
+            if (!clash) return ArrangeSlot(d, s, e)
         }
     }
-}
-
-@Composable
-private fun StepperButton(symbol: String, onClick: () -> Unit) {
-    Text(
-        symbol,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Bold,
-        color = InkDark,
-        modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
-            .background(GlassControlColor)
-            .clickable(onClick = onClick)
-            .wrapContentSize(Alignment.Center),
-    )
-}
-
-@Composable
-private fun WeekToggle(text: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text,
-        fontSize = 12.sp,
-        color = if (selected) Color.White else InkMid,
-        modifier = Modifier
-            .clip(RoundedCornerShape(99.dp))
-            .background(if (selected) BrandGreen else GlassControlColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-    )
+    return ArrangeSlot(preferredDay, 1, 2)
 }

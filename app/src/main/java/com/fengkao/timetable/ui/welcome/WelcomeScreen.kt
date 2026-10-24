@@ -59,11 +59,14 @@ import com.fengkao.timetable.ui.water.LifeTheme
 import com.fengkao.timetable.ui.water.ServiceMessage
 import com.fengkao.timetable.ui.water.WaterLogin
 import com.fengkao.timetable.ui.water.WaterViewModel
+import com.fengkao.timetable.ui.xuexitong.XuexitongLogin
+import com.fengkao.timetable.ui.xuexitong.XuexitongNotificationPermissionEffect
+import com.fengkao.timetable.ui.xuexitong.XuexitongViewModel
 
 private enum class WelcomeStep(val label: String, val title: String, val subtitle: String) {
     INTRO("欢迎", "欢迎使用有梧", "校园大小事，有梧搞定"),
     TEACHING("教务", "连接教务账户", "使用学校教务系统的学号和密码，自动同步课程。"),
-    SERVICES("服务", "连接校园服务", "喝水与洗澡账户分别管理，选择你需要的服务。"),
+    SERVICES("服务", "连接校园服务", "喝水、洗澡与学习通账户分别管理，选择你需要的服务。"),
     PREFERENCES("偏好", "按你的习惯看课表", "调整常用设置，之后也能在“我的”里修改。"),
     READY("完成", "设置好了", "你的校园日常，准备就绪。"),
 }
@@ -74,14 +77,18 @@ fun WelcomeScreen(mainModel: MainViewModel) {
     // Same activity-scoped models as the bottom navigation and account settings.
     val waterModel: WaterViewModel = viewModel()
     val showerModel: ShowerViewModel = viewModel()
+    val xuexitongModel: XuexitongViewModel = viewModel()
     val water by waterModel.state.collectAsStateWithLifecycle()
     val shower by showerModel.state.collectAsStateWithLifecycle()
+    val xuexitong by xuexitongModel.state.collectAsStateWithLifecycle()
+    XuexitongNotificationPermissionEffect(xuexitongModel)
     var step by rememberSaveable { mutableIntStateOf(main.settings.welcomeStep) }
     var service by rememberSaveable { mutableStateOf<String?>(null) }
     var editor by rememberSaveable { mutableStateOf<String?>(null) }
     val holder = rememberSaveableStateHolder()
     val keyboard = LocalSoftwareKeyboardController.current
-    val busy = main.loginBusy || main.firstFetchActive || main.welcomeSaving || water.busy || shower.busy
+    val busy = main.loginBusy || main.firstFetchActive || main.welcomeSaving ||
+        water.busy || shower.busy || xuexitong.busy
 
     fun go(next: Int) {
         keyboard?.hide()
@@ -95,8 +102,13 @@ fun WelcomeScreen(mainModel: MainViewModel) {
             if (service != null) service = null else go(step - 1)
         }
     }
-    LaunchedEffect(water.loggedIn, shower.loggedIn) {
-        if ((service == "water" && water.loggedIn) || (service == "shower" && shower.loggedIn)) service = null
+    LaunchedEffect(water.loggedIn, shower.loggedIn, xuexitong.loggedIn) {
+        if ((service == "water" && water.loggedIn) ||
+            (service == "shower" && shower.loggedIn) ||
+            (service == "xuexitong" && xuexitong.loggedIn)
+        ) {
+            service = null
+        }
     }
 
     val pages = WelcomeStep.entries.take(step + 1).map { it.name } + listOfNotNull(service)
@@ -130,16 +142,22 @@ fun WelcomeScreen(mainModel: MainViewModel) {
             ) {
                 PageStack(pages, ::back, motion = PageMotion.WELCOME) { page ->
                     holder.SaveableStateProvider(page) {
-                        val current = if (page == "water" || page == "shower") WelcomeStep.SERVICES else WelcomeStep.valueOf(page)
+                        val current = if (page == "water" || page == "shower" || page == "xuexitong") WelcomeStep.SERVICES else WelcomeStep.valueOf(page)
                         WelcomeBody(step = current,
-                            title = when (page) { "water" -> "登录喝水账户"; "shower" -> "登录洗澡账户"; else -> current.title },
+                            title = when (page) {
+                                "water" -> "登录喝水账户"
+                                "shower" -> "登录洗澡账户"
+                                "xuexitong" -> "登录学习通账户"
+                                else -> current.title
+                            },
                             subtitle = when (page) {
                                 "water" -> "使用慧生活798账户，登录后可绑定饮水设备。"
                                 "shower" -> "使用趣智校园账户，登录后可连接浴室热水器。"
+                                "xuexitong" -> "登录后自动汇总作业、签到与课程公告，课表页会显示通知卡片。"
                                 else -> if (current == WelcomeStep.READY && !main.loggedIn)
                                     "偏好已保存，接下来登录教务账户即可查看课程。" else current.subtitle
                             },
-                            isService = page == "water" || page == "shower",
+                            isService = page == "water" || page == "shower" || page == "xuexitong",
                         ) {
                             when (page) {
                                 "water" -> {
@@ -149,6 +167,10 @@ fun WelcomeScreen(mainModel: MainViewModel) {
                                 "shower" -> {
                                     ShowerLogin(shower, showerModel, showHeading = false, submitLabel = "登录洗澡账户")
                                     ServiceMessage(shower.message, shower.error)
+                                }
+                                "xuexitong" -> {
+                                    XuexitongLogin(xuexitong, xuexitongModel, showHeading = false, submitLabel = "登录学习通")
+                                    ServiceMessage(xuexitong.message, xuexitong.error)
                                 }
                                 else -> when (current) {
                                     WelcomeStep.INTRO -> WelcomeIntro()
@@ -162,6 +184,10 @@ fun WelcomeScreen(mainModel: MainViewModel) {
                                             SetupAccountItem("洗澡账户", Icons.Outlined.Shower,
                                                 if (shower.loggedIn) maskAccount(shower.phone) else "趣智校园 · 蓝牙开关水",
                                                 shower.loggedIn, shower.busy) { service = "shower" }
+                                            SettingsDivider()
+                                            SetupAccountItem("学习通账户", Icons.Outlined.Notifications,
+                                                if (xuexitong.loggedIn) maskAccount(xuexitong.phone) else "自动汇总作业、签到与课程公告",
+                                                xuexitong.loggedIn && !xuexitong.sessionExpired, xuexitong.busy) { service = "xuexitong" }
                                         }
                                     }
                                     WelcomeStep.PREFERENCES -> {
@@ -191,13 +217,14 @@ fun WelcomeScreen(mainModel: MainViewModel) {
                                             SetupStatus("教务账户", if (main.loggedIn) "已保存" else "稍后登录", main.loggedIn)
                                             SetupStatus("喝水账户", if (water.loggedIn) "已登录" else "稍后登录", water.loggedIn)
                                             SetupStatus("洗澡账户", if (shower.loggedIn) "已登录" else "稍后登录", shower.loggedIn)
+                                            SetupStatus("学习通账户", if (xuexitong.loggedIn) "已登录" else "稍后登录", xuexitong.loggedIn && !xuexitong.sessionExpired)
                                         }
                                         SettingsSection("课表偏好") {
                                             SettingsValue("显示周末", if (main.settings.showWeekend) "开启" else "关闭", InkMid)
                                             SettingsValue("自动更新", if (main.settings.autoSync) "开启" else "关闭", InkMid)
                                             SettingsValue("学期周数", "${main.settings.termWeeks} 周", InkMid)
                                         }
-                                        SettingsHint("喝水和洗澡设备可在对应页面的“设备管理”中绑定。")
+                                        SettingsHint("喝水和洗澡设备可在对应页面的“设备管理”中绑定；学习通通知可在课程页卡片中查看。")
                                     }
                                 }
                             }

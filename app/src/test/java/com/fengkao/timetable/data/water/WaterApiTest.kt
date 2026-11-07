@@ -24,18 +24,29 @@ class WaterApiTest {
         api.sendSms("13800000000", "ABCD", "captcha-key")
         val req = server.takeRequest()
         assertEquals("/api/v1/acc/login/code", req.path)
-        assertEquals("1,5", req.getHeader("ApplicationType"))
+        assertEquals("1,1", req.getHeader("ApplicationType"))
         val body = JSONObject(req.body.readUtf8())
         assertEquals("ABCD", body.getString("authCode"))
         assertEquals("captcha-key", body.getString("s"))
     }
-    @Test fun loginUsesDevicePlatformAndReturnsAppToken() {
+    @Test fun loginSignsRequestAndOmitsCid() {
         reply("""{"code":0,"data":{"al":{"token":"device-token"}}}""")
         assertEquals("device-token", api.login("13800000000", "123456"))
         val req = server.takeRequest()
         assertEquals("1,1", req.getHeader("ApplicationType"))
-        assertEquals("3.1.9", req.getHeader("VersionCode"))
-        assertEquals("test-client", JSONObject(req.body.readUtf8()).getString("cid"))
+        assertEquals(WaterApi.VERSION_CODE, req.getHeader("VersionCode"))
+        // 服务端校验 sign=md5("authCode=<code>&un=<phone>"+盐)；缺失或错盐会被判「请升级最新版应用」。
+        assertEquals(
+            "md5:" + java.security.MessageDigest.getInstance("MD5")
+                .digest("authCode=123456&un=13800000000AbCdEfGhIjKlMnOpQrStUvWxYz12345".toByteArray())
+                .joinToString("") { "%02x".format(it) },
+            "md5:" + req.requestUrl!!.queryParameter("sign"),
+        )
+        val body = JSONObject(req.body.readUtf8())
+        assertEquals("123456", body.getString("authCode"))
+        assertEquals("13800000000", body.getString("un"))
+        assertFalse(body.has("cid"))
+        assertFalse(body.has("openCode"))
     }
     @Test fun missingLoginTokenIsRejected() {
         reply("""{"code":0,"data":{}}""")

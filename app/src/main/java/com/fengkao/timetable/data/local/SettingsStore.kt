@@ -33,6 +33,8 @@ data class AppSettings(
     val rememberPassword: Boolean = true,
     val autoSync: Boolean = true,
     val predictiveBack: Boolean = false,
+    /** 外观：system / light / dark */
+    val themeMode: String = "system",
     val welcomeInitialized: Boolean = false,
     val welcomeCompleted: Boolean = false,
     val welcomeStep: Int = 0,
@@ -101,6 +103,7 @@ class SettingsStore(private val context: Context) {
         val rememberPassword = booleanPreferencesKey("remember_password")
         val autoSync = booleanPreferencesKey("auto_sync")
         val predictiveBack = booleanPreferencesKey("predictive_back")
+    val themeMode = stringPreferencesKey("theme_mode")
         val welcomeInitialized = booleanPreferencesKey("welcome_initialized")
         val welcomeCompleted = booleanPreferencesKey("welcome_completed")
         val welcomeStep = intPreferencesKey("welcome_step")
@@ -131,6 +134,7 @@ class SettingsStore(private val context: Context) {
             rememberPassword = p[Keys.rememberPassword] ?: true,
             autoSync = p[Keys.autoSync] ?: true,
             predictiveBack = p[Keys.predictiveBack] ?: false,
+            themeMode = p[Keys.themeMode] ?: "system",
             welcomeInitialized = p[Keys.welcomeInitialized] ?: false,
             welcomeCompleted = p[Keys.welcomeCompleted] ?: false,
             welcomeStep = (p[Keys.welcomeStep] ?: 0).coerceIn(0, WelcomeProgress.LAST_STEP),
@@ -224,6 +228,7 @@ class SettingsStore(private val context: Context) {
     suspend fun setBaseUrl(value: String) = context.dataStore.edit { it[Keys.baseUrl] = value }
     suspend fun setAutoSync(value: Boolean) = context.dataStore.edit { it[Keys.autoSync] = value }
     suspend fun setPredictiveBack(value: Boolean) = context.dataStore.edit { it[Keys.predictiveBack] = value }
+    suspend fun setThemeMode(value: String) = context.dataStore.edit { it[Keys.themeMode] = value }
     suspend fun setTermStartEpochDay(value: Long, term: TermSpec) = context.dataStore.edit {
         it[Keys.termStart] = value
         it[Keys.termStartXnm] = term.xnm

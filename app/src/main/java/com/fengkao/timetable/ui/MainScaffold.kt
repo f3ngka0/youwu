@@ -27,13 +27,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.WaterDrop
-import androidx.compose.material.icons.outlined.Shower
-import com.fengkao.timetable.ui.water.WaterScreen
-import com.fengkao.timetable.ui.shower.ShowerScreen
-import com.fengkao.timetable.ui.water.WaterViewModel
+import com.fengkao.timetable.ui.service.ServiceScreen
 import com.fengkao.timetable.ui.shower.ShowerViewModel
+import com.fengkao.timetable.ui.water.WaterViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.material3.Icon
@@ -108,13 +106,12 @@ object GlassBarState {
 }
 private val BarHeight = 64.dp
 private val PillHeight = 56.dp
-private const val TabsCount = 4
+private const val TabsCount = 3
 
 private val TabDefs = listOf(
     Triple(0, Icons.Outlined.CalendarMonth, "课程"),
-    Triple(1, Icons.Outlined.WaterDrop, "喝水"),
-    Triple(2, Icons.Outlined.Shower, "洗澡"),
-    Triple(3, Icons.Outlined.Person, "我的"),
+    Triple(1, Icons.Outlined.Dashboard, "服务"),
+    Triple(2, Icons.Outlined.Person, "我的"),
 )
 
 /** 选项内容的按压缩放系数（拖动药丸时图标随之放大） */
@@ -155,9 +152,8 @@ fun MainScaffold(viewModel: MainViewModel) {
                 tabStateHolder.SaveableStateProvider(tab) {
                     CompositionLocalProvider(LocalPredictiveBack provides state.settings.predictiveBack, LocalPageActive provides (tab == state.selectedTab), LocalArrangeMode provides { on: Boolean -> arrangeActive = on }) {
                     when (tab) {
-                        1 -> WaterScreen(waterModel)
-                        2 -> ShowerScreen(showerModel)
-                        3 -> ProfileScreen(viewModel, waterModel, showerModel, xuexitongModel)
+                        1 -> ServiceScreen(waterModel, showerModel)
+                        2 -> ProfileScreen(viewModel, waterModel, showerModel, xuexitongModel)
                         else -> ScheduleScreen(viewModel, xuexitongModel)
                     }
                     }

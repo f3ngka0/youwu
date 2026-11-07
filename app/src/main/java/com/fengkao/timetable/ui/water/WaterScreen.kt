@@ -37,8 +37,8 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
 @Composable
-fun WaterScreen(model: WaterViewModel = viewModel()) {
-    LifeTheme { WaterScreenContent(model) }
+fun WaterScreen(model: WaterViewModel = viewModel(), embedded: Boolean = false) {
+    LifeTheme { WaterScreenContent(model, embedded) }
 }
 
 @Composable
@@ -52,7 +52,7 @@ internal fun LifeTheme(kind: ServiceKind = ServiceKind.Drinking, content: @Compo
 }
 
 @Composable
-private fun WaterScreenContent(model: WaterViewModel) {
+private fun WaterScreenContent(model: WaterViewModel, embedded: Boolean) {
     val s by model.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var manual by rememberSaveable { mutableStateOf(false) }
@@ -71,8 +71,8 @@ private fun WaterScreenContent(model: WaterViewModel) {
         if (active) model.enter()
         onPauseOrDispose { }
     }
-    LifePage {
-        LifeHeader("喝水", "校园饮水", Icons.Outlined.WaterDrop)
+    LifePage(embedded = embedded) {
+        if (!embedded) LifeHeader("喝水", "校园饮水", Icons.Outlined.WaterDrop)
         if (!s.loggedIn) WaterLogin(s, model) else {
             ServiceDeviceCard(s.device?.name, Icons.Outlined.LocalDrink,
                 when { s.busy -> "正在更新设备…"; s.refreshFailed -> "设备更新失败"; s.device == null -> "扫描饮水机二维码，添加第一台设备"; else -> "" },
@@ -159,9 +159,14 @@ internal fun WaterLogin(s: WaterUiState, model: WaterViewModel, showHeading: Boo
 }
 
 @Composable
-internal fun LifePage(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize().background(appBackground()).statusBarsPadding().imePadding()
-        .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 120.dp),
+internal fun LifePage(embedded: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxSize().background(appBackground())
+            .then(if (embedded) Modifier else Modifier.statusBarsPadding())
+            .imePadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(top = if (embedded) 10.dp else 12.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp), content = content)
 }
 

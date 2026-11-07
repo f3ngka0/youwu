@@ -1,5 +1,6 @@
 package com.fengkao.timetable.ui.profile
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,6 +43,20 @@ internal fun ProfileEditors(editor: String?, settings: AppSettings, start: Local
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), supportingText = { if (error) Text("请输入 4–30 的整数") })
         }, confirmButton = { TextButton(onClick = { val weeks = value.toIntOrNull(); if (weeks != null && weeks in 4..30) { model.setTermWeeks(weeks); dismiss() } else error = true }) { Text("保存") } },
             dismissButton = { TextButton(onClick = dismiss) { Text("取消") } }, containerColor = CardWhite)
+    }
+    if (editor == "theme") {
+        AlertDialog(onDismissRequest = dismiss, title = { Text("外观") }, text = {
+            Column {
+                ThemeMode.entries.forEach { mode ->
+                    Row(Modifier.fillMaxWidth().clickable { model.setThemeMode(mode); dismiss() }
+                        .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = ThemeMode.of(settings.themeMode) == mode,
+                            onClick = { model.setThemeMode(mode); dismiss() })
+                        Text(mode.label, fontSize = 15.sp, color = InkDark)
+                    }
+                }
+            }
+        }, confirmButton = { TextButton(onClick = dismiss) { Text("关闭") } }, containerColor = CardWhite)
     }
     if (editor == "url") {
         var url by rememberSaveable { mutableStateOf(settings.baseUrl) }

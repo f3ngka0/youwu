@@ -101,6 +101,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun observeStoredSettings() = viewModelScope.launch {
         state.filter { it.bootstrapped }.first()
         container.settings.flow.collect { settings ->
+            com.fengkao.timetable.ui.theme.ThemePreference.mode =
+                com.fengkao.timetable.ui.theme.ThemeMode.of(settings.themeMode)
             val previous = _state.value.settings
             val fresh = if (settings.lastSyncAt > 0 && settings.lastSyncAt != previous.lastSyncAt && settings.account == previous.account) {
                 withContext(Dispatchers.IO) { container.cache.load() }
@@ -373,7 +375,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------ UI 状态操作
 
-    fun setTab(index: Int) = _state.update { it.copy(selectedTab = index.coerceIn(0, 3)) }
+    fun setTab(index: Int) = _state.update { it.copy(selectedTab = index.coerceIn(0, 2)) }
 
     /** 桌面 Widget 点击课程 → 打开详情 */
     fun openCourseFromWidget(key: String) =
@@ -416,6 +418,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setPredictiveBack(value: Boolean) = viewModelScope.launch {
         container.settings.setPredictiveBack(value)
+    }
+
+    fun setThemeMode(mode: com.fengkao.timetable.ui.theme.ThemeMode) {
+        // 先落内存偏好，界面立即切换；随后写入设置供冷启动读取。
+        com.fengkao.timetable.ui.theme.ThemePreference.mode = mode
+        viewModelScope.launch { container.settings.setThemeMode(mode.stored) }
     }
 
     fun setBaseUrl(value: String) {

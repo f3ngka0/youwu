@@ -178,11 +178,12 @@ fun ProfileScreen(
                 ProfilePage.XUEXITONG -> XuexitongAccountPage(xuexitong, xuexitongModel)
                 ProfilePage.APP -> {
                     SettingsSection {
+                        SettingsItem("外观", Icons.Outlined.DarkMode, value = ThemeMode.of(s.themeMode).label,
+                            divider = true) { editor = "theme" }
                         SettingsItem("欢迎与初次设置", Icons.Outlined.WavingHand,
                             "账户连接、课表偏好", divider = true, onClick = viewModel::reopenWelcome)
                         SettingsItem("高级设置", Icons.Outlined.Settings) { go(ProfilePage.ADVANCED) }
                     }
-                    SettingsHint("外观跟随系统深浅模式")
                 }
                 ProfilePage.ADVANCED -> {
                     SettingsSection {

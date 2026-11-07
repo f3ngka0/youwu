@@ -77,13 +77,19 @@ class WaterApi(
     }
 
     fun sendSms(phone: String, graph: String, key: String) {
-        json("/acc/login/code", body = JSONObject().put("un", phone).put("authCode", graph).put("s", key), app = false)
+        json("/acc/login/code", body = JSONObject().put("un", phone).put("authCode", graph).put("s", key))
     }
 
-    fun login(phone: String, code: String): String = json("/acc/login", body = JSONObject()
-        .put("openCode", "").put("authCode", code).put("un", phone).put("cid", cid))
-        .optJSONObject("data")?.optJSONObject("al")?.optString("token")
-        ?.takeIf { it.isNotBlank() && it != "null" } ?: throw IOException("登录未返回有效凭据，请重试")
+    /**
+     * 登录需要查询参数 sign = md5("authCode=<短信码>&un=<手机号>" + 盐)；
+     * body 只带 authCode 与 un。带上 cid/openCode 或漏掉 sign 都会被判「请升级最新版应用」。
+     */
+    fun login(phone: String, code: String): String {
+        val sign = md5("authCode=$code&un=$phone$SIGN_SALT")
+        return json("/acc/login?sign=$sign", body = JSONObject().put("authCode", code).put("un", phone))
+            .optJSONObject("data")?.optJSONObject("al")?.optString("token")
+            ?.takeIf { it.isNotBlank() && it != "null" } ?: throw IOException("登录未返回有效凭据，请重试")
+    }
 
     fun devices(token: String): List<WaterDevice> {
         // 凭据失效时设备首页仍返回 code=0，但 data 内没有 account；不识别会误显示为「没有设备」。
@@ -111,16 +117,26 @@ class WaterApi(
         return WaterDeviceStatus(device.optInt("status", 1), device.optJSONObject("gene")?.optInt("status", 0) ?: 0)
     }
 
-    /** [ptype] 91 为钱包支付，21 为支付宝免密支付；参数与官方客户端 3.1.9 保持一致。 */
+    /** [ptype] 91 为钱包支付，21 为支付宝免密支付；参数与官方客户端保持一致。 */
     fun start(token: String, id: String, ptype: Int = 91) {
         json("/dev/start?did=${encode(id)}&upgrade=true&ptype=$ptype&args=&rcp=false&cnt=1", token)
     }
 
     private fun encode(value: String): String = java.net.URLEncoder.encode(value, "UTF-8")
 
+    private fun md5(value: String): String = java.security.MessageDigest.getInstance("MD5")
+        .digest(value.toByteArray())
+        .joinToString("") { "%02x".format(it) }
+
     companion object {
-        /** 与官方客户端一致，旧版本号会被服务端要求升级。 */
+        /**
+         * 服务端按「渠道 + 版本 + 签名」识别客户端：App 渠道用 ApplicationType 1,1，
+         * 与 VersionCode 3.1.9 严格配对；版本号改错会连带让签到等签名接口失败。
+         */
         const val VERSION_CODE = "3.1.9"
         const val USER_AGENT = "Android_ilife798_$VERSION_CODE"
+
+        /** App 渠道（ApplicationType 1,1）的登录签名盐。 */
+        private const val SIGN_SALT = "AbCdEfGhIjKlMnOpQrStUvWxYz12345"
     }
 }

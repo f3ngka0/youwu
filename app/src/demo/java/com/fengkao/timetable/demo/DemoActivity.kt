@@ -114,7 +114,8 @@ class DemoActivity : ComponentActivity() {
                 "unknown" -> setState(shower, shower.state.value.copy(unknown = true))
                 "started" -> setState(water, water.state.value.copy(startSeconds = 8))
             }
-            main.setTab(when (screen) { "water", "water-login" -> 1; "shower", "shower-login" -> 2; "profile" -> 3; else -> 0 })
+            main.setTab(when (screen) { "water", "water-login", "shower", "shower-login" -> 1; "profile" -> 2; else -> 0 })
+            com.fengkao.timetable.ui.service.ServiceSelection.index = if (screen.startsWith("shower")) 1 else 0
             if (screen == "welcome") {
                 container.settings.restartWelcome()
                 container.settings.setWelcomeStep(intent.getIntExtra("step", 0))

@@ -44,12 +44,12 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
 @Composable
-fun ShowerScreen(model: ShowerViewModel = viewModel()) {
-    LifeTheme(ServiceKind.Shower) { ShowerContent(model) }
+fun ShowerScreen(model: ShowerViewModel = viewModel(), embedded: Boolean = false) {
+    LifeTheme(ServiceKind.Shower) { ShowerContent(model, embedded) }
 }
 
 @Composable
-private fun ShowerContent(model: ShowerViewModel) {
+private fun ShowerContent(model: ShowerViewModel, embedded: Boolean) {
     val s by model.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val holder = rememberSaveableStateHolder()
@@ -112,13 +112,13 @@ private fun ShowerContent(model: ShowerViewModel) {
     }
     PageStack(if (managing && s.loggedIn) listOf("shower", "devices") else listOf("shower"), { managing = false }) { page ->
         holder.SaveableStateProvider(page) {
-            LifePage {
+            LifePage(embedded = embedded) {
                 if (page == "devices") {
                     DeviceManagementHeader("账户与设备管理") { managing = false }
                     ShowerAccountsManager(s, model) { notePhone = it }
                     ShowerDeviceManager(s, model, ::requestNearby, ::requestScan, { model.beginSecondLogin(); secondLoginOpen = true }) { manual = true }
                 } else {
-                    LifeHeader("洗澡", "浴室热水", Icons.Outlined.Shower, ServiceKind.Shower)
+                    if (!embedded) LifeHeader("洗澡", "浴室热水", Icons.Outlined.Shower, ServiceKind.Shower)
                     if (!s.loggedIn) ShowerLogin(s, model) else {
                         ServiceDeviceCard(s.device?.name, Icons.Outlined.Shower,
                             when { s.confirming -> if (s.active && s.owner) "正在确认关水状态…" else "正在确认开水状态…"; s.unknown -> "用水状态待确认"; s.active && s.owner -> "正在用水"; s.active -> "设备正在被他人使用"; s.busy -> "正在更新设备…"; s.refreshFailed -> "设备更新失败"; s.device == null -> "优先扫描附近蓝牙热水器"; else -> "" },

@@ -9,11 +9,18 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import android.app.Activity
 
 private val LightScheme = lightColorScheme(
     primary = BrandGreen,
@@ -65,10 +72,41 @@ private val AppShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+/** 外观模式：跟随系统 / 固定浅色 / 固定深色。 */
+enum class ThemeMode(val stored: String, val label: String) {
+    System("system", "跟随系统"),
+    Light("light", "浅色"),
+    Dark("dark", "深色");
+
+    companion object {
+        fun of(stored: String?): ThemeMode = entries.firstOrNull { it.stored == stored } ?: System
+    }
+}
+
+/** 当前外观偏好，由设置页写入，TimetableTheme 读取。 */
+object ThemePreference {
+    var mode by mutableStateOf(ThemeMode.System)
+}
+
 @Composable
 fun TimetableTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
-    LaunchedEffect(dark) { updateThemeDark(dark) }
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (ThemePreference.mode) {
+        ThemeMode.Light -> false
+        ThemeMode.Dark -> true
+        ThemeMode.System -> systemDark
+    }
+    val view = LocalView.current
+    val context = LocalContext.current
+    LaunchedEffect(dark) {
+        updateThemeDark(dark)
+        // 强制浅色/深色时同步系统栏图标明暗，避免深色页面配深色状态栏文字。
+        val window = (context as? Activity)?.window ?: return@LaunchedEffect
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+    }
     MaterialTheme(
         colorScheme = if (dark) DarkScheme else LightScheme,
         typography = AppTypography,
